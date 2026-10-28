@@ -36,6 +36,14 @@ jobs:
       - name: Make Gradlew Executable
         run: chmod +x gradlew
 
+      - name: Prepare Debug Keystore
+        run: |
+          if [ ! -f debug.keystore ] && [ -f debug.keystore.base64 ]; then
+            echo "Restoring debug.keystore from debug.keystore.base64..."
+            base64 -d debug.keystore.base64 > debug.keystore || true
+            echo "Keystore check completed."
+          fi
+
       - name: Build Android Debug APK
         run: |
           ./gradlew :app:assembleDebug --stacktrace
