@@ -1,0 +1,158 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'candrajouva03@gmail.com' && request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Admins metadata collection
+    match /admins/{adminId} {
+      allow get: if isSignedIn();
+      allow list, write: if isAdmin();
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().displayName is string && incoming().displayName.size() <= 100 &&
+                       incoming().email is string && incoming().email.size() <= 150 &&
+                       (incoming().role == 'customer' || (incoming().role == 'owner' && isAdmin())) &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time;
+      allow update: if isSignedIn() &&
+                       (request.auth.uid == userId || isAdmin()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().displayName is string && incoming().displayName.size() <= 100 &&
+                       (incoming().role == existing().role || isAdmin()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role']);
+      allow delete: if isAdmin();
+    }
+
+    // Product Categories
+    match /categories/{categoryId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin() &&
+                       isValidId(categoryId) &&
+                       incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 100 &&
+                       incoming().isActive is bool &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time;
+      allow update: if isAdmin() &&
+                       incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 100 &&
+                       incoming().isActive is bool;
+      allow delete: if isAdmin();
+    }
+
+    // Store Products
+    match /products/{productId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin() &&
+                       isValidId(productId) &&
+                       incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 200 &&
+                       incoming().categoryId is string &&
+                       incoming().price is int && incoming().price >= 0 &&
+                       incoming().stock is int && incoming().stock >= 0 &&
+                       incoming().isActive is bool &&
+                       incoming().productType in ['digital', 'physical'] &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
+      allow update: if isAdmin() &&
+                       incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 200 &&
+                       incoming().price is int && incoming().price >= 0 &&
+                       incoming().stock is int && incoming().stock >= 0 &&
+                       incoming().isActive is bool &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
+      allow delete: if isAdmin();
+    }
+
+    // Orders
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() &&
+                       isValidId(orderId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().orderCode is string && incoming().orderCode.size() <= 64 &&
+                       incoming().items is list && incoming().items.size() > 0 && incoming().items.size() <= 50 &&
+                       incoming().subtotal is int && incoming().subtotal >= 0 &&
+                       incoming().total is int && incoming().total >= 0 &&
+                       incoming().paymentMethod is string &&
+                       incoming().paymentStatus in ['pending', 'proof_submitted'] &&
+                       incoming().orderStatus in ['awaiting_payment', 'awaiting_verification'] &&
+                       incoming().customerContact is string && incoming().customerContact.size() <= 150 &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
+      allow update: if isSignedIn() && (
+                       (request.auth.uid == existing().userId &&
+                        incoming().userId == existing().userId &&
+                        incoming().createdAt == existing().createdAt &&
+                        incoming().total == existing().total &&
+                        incoming().orderCode == existing().orderCode &&
+                        incoming().paymentStatus in ['pending', 'proof_submitted'] &&
+                        incoming().orderStatus in ['awaiting_payment', 'awaiting_verification'] &&
+                        incoming().diff(existing()).affectedKeys().hasOnly(['paymentStatus', 'orderStatus', 'customerContact', 'updatedAt'])) ||
+                       isAdmin()
+                     );
+      allow delete: if isAdmin();
+    }
+
+    // Payments
+    match /payments/{paymentId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() &&
+                       isValidId(paymentId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().orderId is string &&
+                       incoming().method is string &&
+                       incoming().amount is int && incoming().amount >= 0 &&
+                       incoming().status in ['pending', 'proof_submitted'] &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time;
+      allow update: if isSignedIn() && (
+                       (request.auth.uid == existing().userId &&
+                        incoming().userId == existing().userId &&
+                        incoming().orderId == existing().orderId &&
+                        incoming().amount == existing().amount &&
+                        incoming().status == 'proof_submitted' &&
+                        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'proofUrl'])) ||
+                       isAdmin()
+                     );
+      allow delete: if isAdmin();
+    }
+
+    // Store Settings
+    match /storeSettings/{settingId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "ZX STORE 24H",
+  "description": "ZX STORE 24H — ZUCCHERO XANN Premium E-Commerce with QRIS payment and Firebase backend",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
