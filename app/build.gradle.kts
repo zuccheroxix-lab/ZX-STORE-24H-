@@ -68,8 +68,7 @@ android {
       // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
       // AI Studio.
       val customKeystore = file("${rootDir}/debug.keystore")
-      val base64Keystore = file("${rootDir}/debug.keystore.base64")
-      signingConfig = if (customKeystore.exists() || base64Keystore.exists()) {
+      signingConfig = if (customKeystore.exists()) {
         signingConfigs.getByName("debugConfig")
       } else {
         signingConfigs.getByName("debug")

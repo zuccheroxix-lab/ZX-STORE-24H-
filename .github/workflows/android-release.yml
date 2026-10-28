@@ -40,15 +40,47 @@ jobs:
 
       - name: Prepare Debug Keystore
         run: |
+          echo "=== MEMPERSIAPKAN DEBUG KEYSTORE UNTUK RELEASE BUILD ==="
           if [ ! -f debug.keystore ] && [ -f debug.keystore.base64 ]; then
-            echo "Restoring debug.keystore from debug.keystore.base64..."
-            base64 -d debug.keystore.base64 > debug.keystore || true
-            echo "Keystore check completed."
+            echo "Memulihkan debug.keystore dari debug.keystore.base64..."
+            base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || true
           fi
+          
+          if [ ! -s debug.keystore ]; then
+            echo "debug.keystore tidak ditemukan / kosong. Membuat debug keystore standar via keytool..."
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          
+          echo "Verifikasi status keystore:"
+          ls -lh debug.keystore
 
       - name: Build Android APK
+        id: gradle_build
         run: |
-          ./gradlew :app:assembleDebug --stacktrace
+          echo "============================================="
+          echo "MEMULAI BUILD ANDROID RELEASE APK (ZX STORE 24H)"
+          echo "============================================="
+          set -o pipefail
+          ./gradlew :app:assembleDebug --stacktrace --no-daemon 2>&1 | tee gradle-build.log
+        continue-on-error: false
+
+      - name: Diagnostic on Build Failure
+        if: failure()
+        run: |
+          echo "::error title=Gradle Build Failed::Build Android Release APK gagal! Menampilkan ringkasan error:"
+          echo "=========================================================="
+          if [ -f gradle-build.log ]; then
+            grep -E -A 10 -B 2 "FAILURE:|What went wrong|Caused by|Execution failed for task" gradle-build.log | head -n 60 || tail -n 60 gradle-build.log
+          fi
+          echo "=========================================================="
 
       - name: Determine Version Tag and Prepare APK
         id: prep
