@@ -6,11 +6,14 @@ import com.example.data.OperationType
 import com.example.data.handleFirestoreError
 import com.example.data.model.CartItem
 import com.example.data.model.ContentReport
+import com.example.data.model.OwnerAnnouncement
 import com.example.data.model.PaymentProof
 import com.example.data.model.Product
 import com.example.data.model.ProductCategory
 import com.example.data.model.ProductReview
+import com.example.data.model.SellerRegistration
 import com.example.data.model.StoreOrder
+import com.example.data.model.StorePromo
 import com.example.data.model.StoreSetting
 import com.example.data.model.Story
 import com.example.data.model.UserProfile
@@ -55,25 +58,31 @@ class StoreRepository(private val db: FirebaseFirestore) {
         return isDeveloperEmail(auth.currentUser?.email)
     }
 
+    fun isCurrentAccountOwner(): Boolean {
+        return isOwnerEmail(auth.currentUser?.email)
+    }
+
     // --- USER PROFILE & SOCIAL ---
     suspend fun syncUserProfile(displayName: String, email: String): UserProfile {
         val uid = requireUserId()
         val docRef = db.collection("users").document(uid)
         val isDev = isDeveloperEmail(email)
-        val defaultRole = if (isDev) "developer" else "customer"
+        val defaultRole = if (isDev) "developer" else "user"
         val defaultUsername = email.substringBefore("@").replace(".", "_").take(15).lowercase()
 
         val snapshot = docRef.get().await()
         if (!snapshot.exists()) {
             val payload = hashMapOf<String, Any>(
                 "userId" to uid,
-                "displayName" to displayName.ifBlank { "ZX Customer" },
-                "username" to defaultUsername,
+                "displayName" to displayName.ifBlank { if (isDev) "ZUCCHERO XANN" else "ZX Customer" },
+                "username" to if (isDev) "zuxann_dev" else defaultUsername,
                 "email" to email,
                 "avatarUrl" to (auth.currentUser?.photoUrl?.toString() ?: ""),
-                "bio" to if (isDev) "⚡ Official ZX Developer & System Admin" else "Member of ZX STORE 24H Community",
+                "bio" to if (isDev) "⚡ Official ZX Developer & Owner Control System" else "Member of ZX STORE 24H Community",
                 "role" to defaultRole,
+                "sellerStatus" to if (isDev) "approved" else "none",
                 "isDeveloper" to isDev,
+                "isOwner" to isDev,
                 "followersCount" to 0L,
                 "followingCount" to 0L,
                 "favorites" to emptyList<String>(),
@@ -82,24 +91,28 @@ class StoreRepository(private val db: FirebaseFirestore) {
             docRef.set(payload).await()
             return UserProfile(
                 userId = uid,
-                displayName = displayName.ifBlank { "ZX Customer" },
-                username = defaultUsername,
+                displayName = displayName.ifBlank { if (isDev) "ZUCCHERO XANN" else "ZX Customer" },
+                username = if (isDev) "zuxann_dev" else defaultUsername,
                 email = email,
                 avatarUrl = auth.currentUser?.photoUrl?.toString() ?: "",
-                bio = if (isDev) "⚡ Official ZX Developer & System Admin" else "Member of ZX STORE 24H Community",
+                bio = if (isDev) "⚡ Official ZX Developer & Owner Control System" else "Member of ZX STORE 24H Community",
                 role = defaultRole,
-                isDeveloper = isDev
+                sellerStatus = if (isDev) "approved" else "none",
+                isDeveloper = isDev,
+                isOwner = isDev
             )
         } else {
             val existing = snapshot.toObject(UserProfile::class.java)
-            if (existing != null && isDev && (existing.role != "developer" && existing.role != "owner" || !existing.isDeveloper)) {
+            if (existing != null && isDev && (!existing.isDeveloper || !existing.isOwner || (existing.role != "developer" && existing.role != "owner"))) {
                 docRef.update(
                     mapOf(
                         "role" to "developer",
-                        "isDeveloper" to true
+                        "isDeveloper" to true,
+                        "isOwner" to true,
+                        "sellerStatus" to "approved"
                     )
                 ).await()
-                return existing.copy(role = "developer", isDeveloper = true)
+                return existing.copy(role = "developer", isDeveloper = true, isOwner = true, sellerStatus = "approved")
             }
             return existing ?: UserProfile(
                 userId = uid,
@@ -107,7 +120,9 @@ class StoreRepository(private val db: FirebaseFirestore) {
                 username = defaultUsername,
                 email = email,
                 role = defaultRole,
-                isDeveloper = isDev
+                sellerStatus = if (isDev) "approved" else "none",
+                isDeveloper = isDev,
+                isOwner = isDev
             )
         }
     }
@@ -115,12 +130,24 @@ class StoreRepository(private val db: FirebaseFirestore) {
     suspend fun updateUserProfile(profile: UserProfile) {
         val uid = requireUserId()
         val docRef = db.collection("users").document(uid)
-        val payload = mapOf(
+        
+        // Anti-impersonation: protect developer & owner usernames
+        val cleanHandle = profile.username.lowercase().trim().removePrefix("@")
+        val reservedKeywords = listOf("developer", "owner", "admin", "candrajouva", "zucchero", "zxstore", "zx_official", "official")
+        val isDev = isDeveloperEmail(auth.currentUser?.email)
+        if (!isDev && reservedKeywords.any { cleanHandle.contains(it) }) {
+            throw IllegalArgumentException("Username mengandung identitas resmi ZX yang dilindungi dan dilarang digunakan.")
+        }
+
+        val payload = mutableMapOf<String, Any>(
             "displayName" to profile.displayName,
-            "username" to profile.username,
+            "username" to cleanHandle,
             "avatarUrl" to profile.avatarUrl,
             "bio" to profile.bio
         )
+        if (profile.sellerQrUrl.isNotBlank()) {
+            payload["sellerQrUrl"] = profile.sellerQrUrl
+        }
         docRef.update(payload).await()
     }
 
@@ -649,22 +676,366 @@ class StoreRepository(private val db: FirebaseFirestore) {
         val totalGmv = paidOrders.sumOf { it.total }
 
         val usersCountSnap = db.collection("users").get().await()
-        val totalUsers = usersCountSnap.size()
+        val users = usersCountSnap.toObjects(UserProfile::class.java)
+        val totalUsers = users.size
+        val activeSellersCount = users.count { it.role == "seller" || it.sellerStatus == "approved" }
+
+        val regSnap = db.collection("seller_registrations").get().await()
+        val registrations = regSnap.toObjects(SellerRegistration::class.java)
+        val pendingRegistrations = registrations.count { it.status == "pending_approval" }
+        val approvedRegistrations = registrations.count { it.status == "approved" }
 
         val storiesSnap = db.collection("stories").get().await()
         val totalStories = storiesSnap.size()
+
+        val annSnap = db.collection("announcements").get().await()
+        val activeAnnouncements = annSnap.toObjects(OwnerAnnouncement::class.java).count { it.isActive }
+
+        val promoSnap = db.collection("promos").get().await()
+        val activePromos = promoSnap.toObjects(StorePromo::class.java).count { it.isActive }
 
         return mapOf(
             "approvedProducts" to approvedCount,
             "pendingProducts" to pendingCount,
             "rejectedProducts" to rejectedCount,
-            "totalSellers" to totalSellers,
+            "totalSellers" to if (activeSellersCount > 0) activeSellersCount else totalSellers,
             "totalOrders" to orders.size,
             "paidOrders" to paidOrders.size,
             "totalGmv" to totalGmv,
             "totalUsers" to totalUsers,
-            "totalStories" to totalStories
+            "totalStories" to totalStories,
+            "pendingRegistrations" to pendingRegistrations,
+            "approvedRegistrations" to approvedRegistrations,
+            "activeAnnouncements" to activeAnnouncements,
+            "activePromos" to activePromos
         )
+    }
+
+    // --- SELLER REGISTRATION & APPROVAL (V3 MARKETPLACE) ---
+    fun generateSalesCode(): String {
+        val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        val code = (1..6).map { chars.random() }.joinToString("")
+        return "ZXSELL-$code"
+    }
+
+    suspend fun submitSellerRegistration(reg: SellerRegistration): String {
+        val uid = requireUserId()
+        val regId = if (reg.id.isNotBlank()) reg.id else "reg_${UUID.randomUUID().toString().take(10)}"
+        val salesCode = if (reg.salesCode.isNotBlank()) reg.salesCode else generateSalesCode()
+        val docRef = db.collection("seller_registrations").document(regId)
+
+        val payload = hashMapOf<String, Any>(
+            "id" to regId,
+            "userId" to uid,
+            "userEmail" to (auth.currentUser?.email ?: reg.userEmail),
+            "applicantName" to reg.applicantName,
+            "shopName" to reg.shopName,
+            "shopUsername" to reg.shopUsername.lowercase().trim().removePrefix("@"),
+            "shopLogoUrl" to reg.shopLogoUrl,
+            "shopDescription" to reg.shopDescription,
+            "contactPhone" to reg.contactPhone,
+            "salesCode" to salesCode,
+            "category" to reg.category,
+            "productTypes" to reg.productTypes,
+            "locationType" to reg.locationType,
+            "placeName" to reg.placeName,
+            "formattedAddress" to reg.formattedAddress,
+            "latitude" to reg.latitude,
+            "longitude" to reg.longitude,
+            "placeId" to reg.placeId,
+            "mapsUrl" to reg.mapsUrl,
+            "operatingHours" to reg.operatingHours,
+            "paymentMethods" to reg.paymentMethods,
+            "sellerQrUrl" to reg.sellerQrUrl,
+            "sampleProductImageUrl" to reg.sampleProductImageUrl,
+            "serviceTerms" to reg.serviceTerms,
+            "promoName" to reg.promoName,
+            "promoDescription" to reg.promoDescription,
+            "promoOriginalPrice" to reg.promoOriginalPrice,
+            "promoDiscountedPrice" to reg.promoDiscountedPrice,
+            "promoPeriod" to reg.promoPeriod,
+            "promoBannerUrl" to reg.promoBannerUrl,
+            "status" to "pending_approval",
+            "createdAt" to FieldValue.serverTimestamp(),
+            "updatedAt" to FieldValue.serverTimestamp()
+        )
+        docRef.set(payload).await()
+
+        db.collection("users").document(uid).update(
+            mapOf(
+                "sellerStatus" to "pending",
+                "sellerRegistrationId" to regId
+            )
+        ).await()
+
+        return regId
+    }
+
+    fun observeSellerRegistrations(): Flow<List<SellerRegistration>> {
+        val path = "seller_registrations"
+        return db.collection(path)
+            .snapshots()
+            .map { snap ->
+                snap.toObjects(SellerRegistration::class.java).sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+            .catch { emit(emptyList()) }
+    }
+
+    fun observeMySellerRegistration(userId: String): Flow<SellerRegistration?> = callbackFlow {
+        val query = db.collection("seller_registrations").whereEqualTo("userId", userId).limit(1)
+        val listener = query.addSnapshotListener { snapshot, _ ->
+            val firstDoc = snapshot?.documents?.firstOrNull()?.toObject(SellerRegistration::class.java)
+            trySend(firstDoc)
+        }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun approveSellerRegistration(
+        registrationId: String,
+        applicantUid: String,
+        salesCode: String,
+        shopName: String,
+        shopUsername: String,
+        address: String,
+        mapsUrl: String,
+        sellerQrUrl: String = ""
+    ) {
+        val modEmail = auth.currentUser?.email ?: "candrajouva03@gmail.com"
+        db.collection("seller_registrations").document(registrationId).update(
+            mapOf(
+                "status" to "approved",
+                "reviewedBy" to modEmail,
+                "reviewedAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+        ).await()
+
+        val updatePayload = mutableMapOf<String, Any>(
+            "role" to "seller",
+            "sellerStatus" to "approved",
+            "sellerRegistrationId" to registrationId,
+            "shopName" to shopName,
+            "shopUsername" to shopUsername,
+            "salesCode" to salesCode,
+            "shopAddress" to address,
+            "shopMapsUrl" to mapsUrl
+        )
+        if (sellerQrUrl.isNotBlank()) {
+            updatePayload["sellerQrUrl"] = sellerQrUrl
+        }
+        db.collection("users").document(applicantUid).update(updatePayload).await()
+
+        logModerationAction(
+            targetType = "SELLER_REGISTRATION",
+            targetId = registrationId,
+            targetTitle = "Toko: $shopName (@$shopUsername)",
+            action = "ACC_SELLER",
+            reason = "Pendaftaran seller disetujui resmi oleh Owner/Developer"
+        )
+    }
+
+    suspend fun rejectSellerRegistration(registrationId: String, applicantUid: String, reason: String) {
+        val modEmail = auth.currentUser?.email ?: ""
+        db.collection("seller_registrations").document(registrationId).update(
+            mapOf(
+                "status" to "rejected",
+                "rejectionReason" to reason,
+                "reviewedBy" to modEmail,
+                "reviewedAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+        ).await()
+
+        db.collection("users").document(applicantUid).update(
+            mapOf(
+                "sellerStatus" to "rejected"
+            )
+        ).await()
+
+        logModerationAction(
+            targetType = "SELLER_REGISTRATION",
+            targetId = registrationId,
+            targetTitle = "Penolakan Seller #$registrationId",
+            action = "REJECT_SELLER",
+            reason = reason
+        )
+    }
+
+    suspend fun requestSellerRegistrationRevision(registrationId: String, applicantUid: String, notes: String) {
+        val modEmail = auth.currentUser?.email ?: ""
+        db.collection("seller_registrations").document(registrationId).update(
+            mapOf(
+                "status" to "revision_requested",
+                "rejectionReason" to notes,
+                "reviewedBy" to modEmail,
+                "reviewedAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+        ).await()
+
+        db.collection("users").document(applicantUid).update(
+            mapOf(
+                "sellerStatus" to "revision_requested"
+            )
+        ).await()
+
+        logModerationAction(
+            targetType = "SELLER_REGISTRATION",
+            targetId = registrationId,
+            targetTitle = "Permintaan Revisi Seller #$registrationId",
+            action = "REVISION_REQUESTED",
+            reason = notes
+        )
+    }
+
+    suspend fun blockSellerRegistration(registrationId: String, applicantUid: String, reason: String) {
+        val modEmail = auth.currentUser?.email ?: ""
+        db.collection("seller_registrations").document(registrationId).update(
+            mapOf(
+                "status" to "blocked",
+                "rejectionReason" to reason,
+                "reviewedBy" to modEmail,
+                "reviewedAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+        ).await()
+
+        db.collection("users").document(applicantUid).update(
+            mapOf(
+                "sellerStatus" to "blocked",
+                "role" to "user"
+            )
+        ).await()
+
+        logModerationAction(
+            targetType = "SELLER_REGISTRATION",
+            targetId = registrationId,
+            targetTitle = "Pemblokiran Akun Seller #$registrationId",
+            action = "BLOCKED",
+            reason = reason
+        )
+    }
+
+    // --- OWNER ANNOUNCEMENTS ---
+    fun observeAnnouncements(): Flow<List<OwnerAnnouncement>> {
+        return db.collection("announcements")
+            .snapshots()
+            .map { snap ->
+                snap.toObjects(OwnerAnnouncement::class.java).sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+            .catch { emit(emptyList()) }
+    }
+
+    suspend fun createAnnouncement(announcement: OwnerAnnouncement): String {
+        val annId = if (announcement.id.isNotBlank()) announcement.id else "ann_${UUID.randomUUID().toString().take(8)}"
+        val docRef = db.collection("announcements").document(annId)
+        val payload = hashMapOf<String, Any>(
+            "id" to annId,
+            "title" to announcement.title,
+            "content" to announcement.content,
+            "imageUrl" to announcement.imageUrl,
+            "themeColorHex" to announcement.themeColorHex,
+            "targetUrl" to announcement.targetUrl,
+            "targetAudience" to announcement.targetAudience,
+            "badgeText" to announcement.badgeText,
+            "isActive" to announcement.isActive,
+            "priority" to announcement.priority,
+            "authorEmail" to (auth.currentUser?.email ?: "candrajouva03@gmail.com"),
+            "startDate" to announcement.startDate,
+            "endDate" to announcement.endDate,
+            "createdAt" to FieldValue.serverTimestamp(),
+            "updatedAt" to FieldValue.serverTimestamp()
+        )
+        docRef.set(payload).await()
+        logModerationAction(
+            targetType = "ANNOUNCEMENT",
+            targetId = annId,
+            targetTitle = announcement.title,
+            action = "PUBLISHED",
+            reason = "Pengumuman resmi dibuat oleh Owner/Developer"
+        )
+        return annId
+    }
+
+    suspend fun updateAnnouncement(announcement: OwnerAnnouncement) {
+        db.collection("announcements").document(announcement.id).set(
+            announcement.copy(updatedAt = null),
+            SetOptions.merge()
+        ).await()
+    }
+
+    suspend fun deleteAnnouncement(announcementId: String) {
+        db.collection("announcements").document(announcementId).delete().await()
+        logModerationAction(
+            targetType = "ANNOUNCEMENT",
+            targetId = announcementId,
+            targetTitle = "Hapus Pengumuman #$announcementId",
+            action = "DELETED",
+            reason = "Pengumuman resmi dihapus oleh Owner/Developer"
+        )
+    }
+
+    suspend fun toggleAnnouncementActive(announcementId: String, isActive: Boolean) {
+        db.collection("announcements").document(announcementId).update(
+            mapOf(
+                "isActive" to isActive,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+        ).await()
+    }
+
+    // --- STORE PROMOS ---
+    fun observePromos(): Flow<List<StorePromo>> {
+        return db.collection("promos")
+            .snapshots()
+            .map { snap ->
+                snap.toObjects(StorePromo::class.java).sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+            .catch { emit(emptyList()) }
+    }
+
+    fun observeSellerPromos(sellerId: String): Flow<List<StorePromo>> {
+        return db.collection("promos")
+            .whereEqualTo("sellerId", sellerId)
+            .snapshots()
+            .map { snap ->
+                snap.toObjects(StorePromo::class.java).sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+            .catch { emit(emptyList()) }
+    }
+
+    suspend fun createPromo(promo: StorePromo): String {
+        val uid = requireUserId()
+        val promoId = if (promo.id.isNotBlank()) promo.id else "promo_${UUID.randomUUID().toString().take(8)}"
+        val docRef = db.collection("promos").document(promoId)
+        val payload = hashMapOf<String, Any>(
+            "id" to promoId,
+            "sellerId" to uid,
+            "sellerName" to promo.sellerName,
+            "salesCode" to promo.salesCode,
+            "title" to promo.title,
+            "description" to promo.description,
+            "discountPercent" to promo.discountPercent,
+            "discountAmount" to promo.discountAmount,
+            "originalPrice" to promo.originalPrice,
+            "promoPrice" to promo.promoPrice,
+            "bannerUrl" to promo.bannerUrl,
+            "productId" to promo.productId,
+            "productName" to promo.productName,
+            "promoCode" to promo.promoCode.uppercase().trim(),
+            "startDate" to promo.startDate,
+            "endDate" to promo.endDate,
+            "termsAndConditions" to promo.termsAndConditions,
+            "isActive" to promo.isActive,
+            "moderationStatus" to "approved",
+            "createdAt" to FieldValue.serverTimestamp()
+        )
+        docRef.set(payload).await()
+        return promoId
+    }
+
+    suspend fun deletePromo(promoId: String) {
+        db.collection("promos").document(promoId).delete().await()
     }
 
     // --- ORDERS & PAYMENTS ---

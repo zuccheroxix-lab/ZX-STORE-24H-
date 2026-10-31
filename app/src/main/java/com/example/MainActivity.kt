@@ -48,11 +48,14 @@ import com.example.ui.screens.OwnerDashboardScreen
 import com.example.ui.screens.ProductDetailScreen
 import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.QrisPaymentScreen
+import com.example.ui.screens.RegisterSellerScreen
 import com.example.ui.screens.SearchScreen
+import com.example.ui.screens.SellerDashboardScreen
 import com.example.ui.screens.SellerProfileScreen
 import com.example.ui.screens.StoryFeedScreen
 import com.example.ui.screens.StoryViewerScreen
 import com.example.ui.screens.SubmitProductScreen
+import com.example.ui.screens.FraudReportScreen
 import com.example.ui.theme.BackgroundBlack
 import com.example.ui.theme.ZXStoreTheme
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
@@ -204,6 +207,9 @@ fun StoreAppContent(
             Screen.CATEGORIES -> viewModel.navigateTo(Screen.HOME)
             Screen.PROFILE -> viewModel.navigateTo(Screen.HOME)
             Screen.HELP -> viewModel.navigateTo(Screen.HOME)
+            Screen.REGISTER_SELLER -> viewModel.navigateTo(Screen.PROFILE)
+            Screen.SELLER_DASHBOARD -> viewModel.navigateTo(Screen.PROFILE)
+            Screen.FRAUD_REPORT -> viewModel.navigateTo(Screen.HELP)
             Screen.ADMIN_PRODUCTS, Screen.ADMIN_ORDERS, Screen.ADMIN_CATEGORIES, Screen.ADMIN_SETTINGS -> {
                 viewModel.navigateTo(Screen.OWNER_DASHBOARD)
             }
@@ -212,7 +218,7 @@ fun StoreAppContent(
         }
     }
 
-    val isOwner = userProfile?.role == "owner"
+    val isOwner = viewModel.isOwner || viewModel.isDeveloper
 
     Scaffold(
         topBar = {
@@ -260,6 +266,9 @@ fun StoreAppContent(
                 Screen.ORDER_HISTORY -> OrderHistoryScreen(viewModel = viewModel)
                 Screen.PROFILE -> ProfileScreen(viewModel = viewModel)
                 Screen.HELP -> HelpScreen(viewModel = viewModel)
+                Screen.REGISTER_SELLER -> RegisterSellerScreen(viewModel = viewModel)
+                Screen.SELLER_DASHBOARD -> SellerDashboardScreen(viewModel = viewModel)
+                Screen.FRAUD_REPORT -> FraudReportScreen(viewModel = viewModel)
                 Screen.OWNER_DASHBOARD,
                 Screen.ADMIN_PRODUCTS,
                 Screen.ADMIN_CATEGORIES,

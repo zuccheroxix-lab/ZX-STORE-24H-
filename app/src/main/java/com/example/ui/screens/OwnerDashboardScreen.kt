@@ -111,18 +111,26 @@ fun OwnerDashboardScreen(
     val moderationLogs by viewModel.moderationLogs.collectAsState()
     val stats by viewModel.marketplaceStats.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
+    val sellerRegistrations by viewModel.sellerRegistrations.collectAsState()
+    val announcements by viewModel.announcements.collectAsState()
+    val promos by viewModel.promos.collectAsState()
 
     val isDeveloper = viewModel.isDeveloper
+    val isOwner = viewModel.isOwner
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabTitles = listOf(
         "Statistik Riil",
-        "Moderasi (${allModerationProducts.count { it.moderationStatus == "pending" }})",
+        "Persetujuan Seller (${sellerRegistrations.count { it.status == "pending_approval" }})",
+        "Manajemen Seller (${sellerRegistrations.count { it.status == "approved" }})",
+        "Moderasi Produk (${allModerationProducts.count { it.moderationStatus == "pending" }})",
+        "Moderasi Promo (${promos.size})",
+        "Pengumuman Owner (${announcements.count { it.isActive }})",
         "Laporan (${reports.count { it.status == "pending" }})",
         "Pesanan & QRIS",
         "Kategori",
         "Log Audit",
-        "Pengaturan"
+        "Pengaturan & Kebijakan"
     )
 
     // Stats calculations
@@ -264,7 +272,18 @@ fun OwnerDashboardScreen(
                 ordersCount = orders.size,
                 onRefresh = { viewModel.refreshMarketplaceStats() }
             )
-            1 -> DeveloperModerationTab(
+            1 -> SellerApprovalCenterTab(
+                registrations = sellerRegistrations,
+                onApprove = { reg -> viewModel.approveSeller(reg) },
+                onReject = { reg, reason -> viewModel.rejectSeller(reg.id, reason) },
+                onRevision = { reg, reason -> viewModel.requestSellerRevision(reg.id, reason) },
+                onBlock = { reg, reason -> viewModel.blockSeller(reg.id, reason) }
+            )
+            2 -> SellerManagementTab(
+                registrations = sellerRegistrations,
+                onBlock = { seller, reason -> viewModel.blockSeller(seller.id, reason) }
+            )
+            3 -> DeveloperModerationTab(
                 products = if (allModerationProducts.isNotEmpty()) allModerationProducts else products,
                 onModerate = { prod, targetStatus ->
                     productToModerate = prod
@@ -272,24 +291,36 @@ fun OwnerDashboardScreen(
                     moderationReasonInput = ""
                 }
             )
-            2 -> DeveloperReportsTab(
+            4 -> ModerasiPromoTab(
+                promos = promos,
+                onDeletePromo = { promoId -> viewModel.deletePromo(promoId) }
+            )
+            5 -> OwnerAnnouncementsTab(
+                announcements = announcements,
+                onToggleActive = { id, active -> viewModel.toggleAnnouncement(id, active) },
+                onDelete = { id -> viewModel.deleteAnnouncement(id) },
+                onCreate = { title, content, type, url, txt ->
+                    viewModel.createAnnouncement(title, content, type, url, txt)
+                }
+            )
+            6 -> DeveloperReportsTab(
                 reports = reports,
                 onResolve = { report, resolution ->
                     viewModel.resolveReport(report.id, resolution, report.targetType, report.targetId)
                 }
             )
-            3 -> OwnerOrdersTab(
+            7 -> OwnerOrdersTab(
                 orders = orders,
                 onVerifyClick = { orderToVerify = it }
             )
-            4 -> OwnerCategoriesTab(
+            8 -> OwnerCategoriesTab(
                 categories = categories,
                 onAddCategory = { showAddCategoryDialog = true }
             )
-            5 -> DeveloperAuditLogsTab(
+            9 -> DeveloperAuditLogsTab(
                 logs = moderationLogs
             )
-            6 -> OwnerSettingsTab(
+            10 -> OwnerSettingsTab(
                 storeSettings = storeSettings,
                 onSave = { updated -> viewModel.updateStoreSettings(updated) }
             )
@@ -1202,6 +1233,36 @@ fun DeveloperRealStatsTab(
                     title = "Story 24 Jam Aktif",
                     value = "$totalStories",
                     color = CyanAccent,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        // Metric Grid 4: Seller Approval & Platform Control
+        item {
+            val pendingSellers = (stats["pendingSellerRegistrations"] as? Int) ?: 0
+            val activeAnnouncements = (stats["activeAnnouncements"] as? Int) ?: 0
+            val activePromos = (stats["activePromos"] as? Int) ?: 0
+
+            Text("Pusat Kontrol Seller & Pengumuman", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MetricCard(
+                    title = "ACC Seller Menunggu",
+                    value = "$pendingSellers",
+                    color = if (pendingSellers > 0) StatusWarning else TextSecondary,
+                    modifier = Modifier.weight(1f)
+                )
+                MetricCard(
+                    title = "Pengumuman Aktif",
+                    value = "$activeAnnouncements",
+                    color = CyanAccent,
+                    modifier = Modifier.weight(1f)
+                )
+                MetricCard(
+                    title = "Kupon Promo",
+                    value = "$activePromos",
+                    color = StatusSuccess,
                     modifier = Modifier.weight(1f)
                 )
             }

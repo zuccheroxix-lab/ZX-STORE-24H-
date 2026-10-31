@@ -318,11 +318,12 @@ fun StatusBadge(
     modifier: Modifier = Modifier
 ) {
     val (bgColor, textColor, label) = when (status.lowercase()) {
-        "pending", "awaiting_payment" -> Triple(StatusWarning.copy(alpha = 0.15f), StatusWarning, "Menunggu Pembayaran")
+        "pending", "awaiting_payment", "pending_approval" -> Triple(StatusWarning.copy(alpha = 0.15f), StatusWarning, "Menunggu Persetujuan")
         "proof_submitted", "awaiting_verification" -> Triple(CyanPrimary.copy(alpha = 0.15f), CyanPrimary, "Verifikasi Owner")
         "paid", "completed" -> Triple(StatusSuccess.copy(alpha = 0.15f), StatusSuccess, "Lunas / Selesai")
         "processing" -> Triple(StatusWarning.copy(alpha = 0.2f), StatusWarning, "Sedang Diproses")
         "rejected", "cancelled" -> Triple(StatusDanger.copy(alpha = 0.15f), StatusDanger, "Ditolak / Batal")
+        "blocked" -> Triple(StatusDanger.copy(alpha = 0.25f), StatusDanger, "Akun Diblokir")
         "expired" -> Triple(Color.Gray.copy(alpha = 0.2f), Color.LightGray, "Kadaluarsa")
         "approved" -> Triple(StatusSuccess.copy(alpha = 0.15f), StatusSuccess, "Disetujui")
         "revision_requested" -> Triple(StatusWarning.copy(alpha = 0.2f), StatusWarning, "Minta Revisi")
@@ -342,6 +343,45 @@ fun StatusBadge(
             color = textColor,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+fun RoleBadge(
+    role: String,
+    isDeveloper: Boolean = false,
+    isOwner: Boolean = false,
+    sellerStatus: String = "none",
+    modifier: Modifier = Modifier
+) {
+    val (badgeLabel, borderCol, textCol) = when {
+        isOwner || role == "owner" -> Triple("👑 OWNER", Color(0xFFFFD54F), Color(0xFFFFE082))
+        isDeveloper || role == "developer" -> Triple("⚡ DEVELOPER", CyanAccent, CyanAccent)
+        role == "seller" || sellerStatus == "approved" -> Triple("🏪 SELLER", Color(0xFF69F0AE), Color(0xFFB9F6CA))
+        else -> Triple("👤 USER", SurfaceBorder, TextSecondary)
+    }
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(
+                when {
+                    isOwner || role == "owner" -> Color(0xFFFF8F00).copy(alpha = 0.2f)
+                    isDeveloper || role == "developer" -> CyanAccent.copy(alpha = 0.2f)
+                    role == "seller" || sellerStatus == "approved" -> Color(0xFF00C853).copy(alpha = 0.2f)
+                    else -> SurfaceElevated
+                }
+            )
+            .border(1.dp, borderCol.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = badgeLabel,
+            color = textCol,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
         )
     }
 }

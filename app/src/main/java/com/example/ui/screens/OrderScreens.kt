@@ -89,6 +89,7 @@ import com.example.ui.components.formatRupiah
 import com.example.ui.theme.BackgroundBlack
 import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.CyanPrimary
+import com.example.ui.theme.StatusDanger
 import com.example.ui.theme.StatusSuccess
 import com.example.ui.theme.StatusWarning
 import com.example.ui.theme.SurfaceBorder
@@ -561,28 +562,12 @@ fun ProfileScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Spacer(modifier = Modifier.height(4.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(
-                                        if (viewModel.isDeveloper) CyanAccent.copy(alpha = 0.25f)
-                                        else if (userProfile?.role == "moderator") Color(0xFF9C27B0).copy(alpha = 0.2f)
-                                        else SurfaceElevated
-                                    )
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = when {
-                                        viewModel.isDeveloper -> "⚡ DEVELOPER"
-                                        userProfile?.role == "moderator" -> "🛡️ MODERATOR"
-                                        userProfile?.role == "seller" -> "🏪 PENJUAL TERVERIFIKASI"
-                                        else -> "👤 MEMBER MARKETPLACE"
-                                    },
-                                    color = if (viewModel.isDeveloper) CyanAccent else TextSecondary,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            com.example.ui.components.RoleBadge(
+                                role = userProfile?.role ?: "user",
+                                isDeveloper = viewModel.isDeveloper,
+                                isOwner = viewModel.isOwner,
+                                sellerStatus = userProfile?.sellerStatus ?: "none"
+                            )
                         }
 
                         IconButton(
@@ -647,39 +632,65 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(
-                        onClick = { viewModel.navigateTo(Screen.SUBMIT_PRODUCT) },
-                        colors = ButtonDefaults.buttonColors(containerColor = CyanPrimary, contentColor = Color(0xFF080B10)),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Mulai Jual Produk (+)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
+                    val isApprovedSeller = userProfile?.role == "seller" || userProfile?.sellerStatus == "approved"
 
-                    if (viewModel.isDeveloper) {
-                        OutlinedButton(
-                            onClick = { viewModel.navigateTo(Screen.OWNER_DASHBOARD) },
+                    if (isApprovedSeller) {
+                        Button(
+                            onClick = { viewModel.navigateTo(Screen.SELLER_DASHBOARD) },
+                            colors = ButtonDefaults.buttonColors(containerColor = CyanPrimary, contentColor = Color(0xFF080B10)),
                             shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, CyanPrimary),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = CyanPrimary, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Storefront, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("⚡ Dashboard Developer & Moderasi", color = CyanPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("Buka Dashboard Seller", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
-                    } else if (isModerator) {
+
                         OutlinedButton(
-                            onClick = { viewModel.navigateTo(Screen.MODERATION_DASHBOARD) },
+                            onClick = { viewModel.navigateTo(Screen.SUBMIT_PRODUCT) },
                             shape = RoundedCornerShape(8.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, CyanAccent),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.Shield, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Add, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Dashboard Moderasi Produk", color = CyanAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("Tambah Produk Baru (+)", color = CyanAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
+                    } else {
+                        Button(
+                            onClick = { viewModel.navigateTo(Screen.REGISTER_SELLER) },
+                            colors = ButtonDefaults.buttonColors(containerColor = CyanPrimary, contentColor = Color(0xFF080B10)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Storefront, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Daftar Menjadi Seller (+)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+
+                    if (viewModel.isDeveloper || viewModel.isOwner) {
+                        OutlinedButton(
+                            onClick = { viewModel.navigateTo(Screen.OWNER_DASHBOARD) },
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD54F)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = Color(0xFFFFD54F), modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("👑 Panel Kontrol Owner & Developer", color = Color(0xFFFFD54F), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = { viewModel.navigateTo(Screen.FRAUD_REPORT) },
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, StatusDanger.copy(alpha = 0.7f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Shield, contentDescription = null, tint = StatusDanger, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Pusat Pengaduan & Anti-Penipuan", color = StatusDanger, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }
@@ -1111,55 +1122,122 @@ fun HelpScreen(
             }
         }
 
-        // WhatsApp Direct Card
+        // Official Developer Contact Card
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = SurfaceElevated),
-                shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, StatusSuccess),
+                colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, CyanAccent),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(CyanAccent.copy(alpha = 0.2f))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "OFFICIAL ZX STORE DEVELOPER CONTACT",
+                                color = CyanAccent,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     Text(
-                        text = "Kontak Owner / Customer Support",
+                        text = "Kontak Resmi Pengembang Sistem ZX",
                         color = TextPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
                     Text(
-                        text = "Nomor WhatsApp: ${storeSettings.supportContact.ifBlank { "081234567890" }}",
-                        color = StatusSuccess,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                    Text(
-                        text = "Layanan aktif 24 jam nonstop untuk verifikasi pembayaran, kendala pesanan, atau pertanyaan produk.",
+                        text = "Email Resmi Developer: candrajouva03@gmail.com",
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    // Kontak 1
                     Button(
                         onClick = {
-                            val contact = storeSettings.supportContact.ifBlank { "628123456789" }
-                            val cleanPhone = if (contact.startsWith("0")) "62" + contact.drop(1) else contact
-                            val text = "Halo ZX STORE 24H, saya membutuhkan bantuan terkait transaksi saya."
-                            val url = "https://wa.me/$cleanPhone?text=${Uri.encode(text)}"
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/6287861072798?text=${Uri.encode("Halo Developer ZX STORE, saya membutuhkan bantuan resmi terkait aplikasi.")}"))
                             context.startActivity(intent)
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = StatusSuccess,
+                            containerColor = CyanPrimary,
                             contentColor = Color(0xFF080B10)
                         ),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.QuestionAnswer, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Hubungi via WhatsApp", fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("WhatsApp Resmi Developer 1 (0878-6107-2798)", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Kontak 2
+                    OutlinedButton(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/6287835461585?text=${Uri.encode("Halo Developer ZX STORE, saya membutuhkan bantuan resmi terkait aplikasi.")}"))
+                            context.startActivity(intent)
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CyanAccent),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Call, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("WhatsApp Resmi Developer 2 (0878-3546-1585)", color = CyanAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        // Security Warning & Anti-Fraud Report Banner
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = SurfaceElevated),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, StatusDanger.copy(alpha = 0.6f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Shield, contentDescription = null, tint = StatusDanger, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Peringatan Anti Penipuan",
+                            color = StatusDanger,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Hubungi Developer hanya melalui kontak resmi yang ditampilkan di aplikasi. Jangan percaya akun atau kontak lain yang mengaku sebagai Owner atau Developer tanpa badge resmi. Nomor kontak seller dan nomor resmi Developer memiliki tanda pengenal terpisah.",
+                        color = TextPrimary,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = { viewModel.navigateTo(Screen.FRAUD_REPORT) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = StatusDanger,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Laporkan Penipuan / Seller Bermasalah", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }

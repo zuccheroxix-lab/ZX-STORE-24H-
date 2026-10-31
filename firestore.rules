@@ -20,8 +20,17 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        (request.auth.token.email == 'candrajouva03@gmail.com' && request.auth.token.email_verified == true) ||
+        (request.auth.token.email == 'candrajouva03@gmail.com') ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isSeller() {
+      return isSignedIn() && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'seller' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.sellerStatus == 'approved')
       );
     }
 
@@ -45,10 +54,45 @@ service cloud.firestore {
                        incoming().userId == request.auth.uid &&
                        incoming().createdAt is timestamp && incoming().createdAt <= request.time;
       allow update: if isSignedIn() && (
-                       (request.auth.uid == userId && !incoming().diff(existing()).affectedKeys().hasAny(['role', 'isDeveloper', 'email'])) ||
+                       (request.auth.uid == userId && !incoming().diff(existing()).affectedKeys().hasAny(['role', 'isDeveloper', 'isOwner', 'sellerStatus', 'salesCode', 'email'])) ||
                        isAdmin()
                      );
       allow delete: if isAdmin();
+    }
+
+    // Seller registrations
+    match /seller_registrations/{regId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (isAdmin() || request.query.limit <= 50);
+      allow create: if isSignedIn() &&
+                       isValidId(regId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().status == 'pending_approval' &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time;
+      allow update: if isSignedIn() && (
+                       (resource.data.userId == request.auth.uid &&
+                        existing().status in ['pending_approval', 'revision_requested'] &&
+                        incoming().status == 'pending_approval' &&
+                        !incoming().diff(existing()).affectedKeys().hasAny(['status', 'reviewedBy', 'reviewedAt', 'salesCode'])) ||
+                       isAdmin()
+                     );
+      allow delete: if isAdmin();
+    }
+
+    // Owner Announcements (Top realtime notices)
+    match /announcements/{announcementId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Store Promos
+    match /promos/{promoId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() &&
+                       isValidId(promoId) &&
+                       (incoming().sellerId == request.auth.uid || isAdmin());
+      allow update, delete: if isSignedIn() &&
+                       ((resource.data.sellerId == request.auth.uid) || isAdmin());
     }
 
     // Follows
@@ -67,7 +111,7 @@ service cloud.firestore {
     // Marketplace Products
     match /products/{productId} {
       allow get, list: if isSignedIn();
-      // Allow any logged in user to submit a product to the marketplace
+      // Only approved sellers or admins can create products for the marketplace
       allow create: if isSignedIn() &&
                        isValidId(productId) &&
                        incoming().sellerId == request.auth.uid &&
@@ -75,9 +119,8 @@ service cloud.firestore {
                        incoming().price is int && incoming().price >= 0 &&
                        incoming().stock is int && incoming().stock >= 0 &&
                        (incoming().moderationStatus in ['pending', 'approved', 'rejected', 'revision_requested', 'suspended']) &&
-                       // Regular users can only submit with status 'pending' unless admin
-                       (isAdmin() || incoming().moderationStatus == 'pending');
-      // Sellers can update their own products, or admins can moderate
+                       (isAdmin() || (isSeller() && incoming().moderationStatus == 'pending'));
+      // Sellers can update/delete their own products, or admins can moderate
       allow update: if isSignedIn() &&
                        ((resource.data.sellerId == request.auth.uid) || isAdmin());
       allow delete: if isSignedIn() &&

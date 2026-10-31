@@ -58,11 +58,16 @@ import androidx.compose.foundation.Image
 import androidx.compose.material.icons.filled.AddBusiness
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.ui.res.painterResource
+import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.VerifiedUser
 import com.example.R
 import com.example.data.model.Product
 import com.example.data.model.ProductCategory
 import com.example.ui.Screen
 import com.example.ui.StoreViewModel
+import com.example.ui.components.RoleBadge
 import com.example.ui.components.formatRupiah
 import com.example.ui.theme.BackgroundBlack
 import com.example.ui.theme.CyanAccent
@@ -84,6 +89,13 @@ fun HomeScreen(
     val categories by viewModel.categories.collectAsState()
     val allProducts by viewModel.products.collectAsState()
     val storeSettings by viewModel.storeSettings.collectAsState()
+    val announcements by viewModel.announcements.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
+
+    // Filter active announcements
+    val activeAnnouncements = remember(announcements) {
+        announcements.filter { it.isActive }
+    }
 
     // Filter to active/approved marketplace products
     val products = remember(allProducts) {
@@ -96,6 +108,108 @@ fun HomeScreen(
             .background(BackgroundBlack),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
+        // 0. Realtime Owner Announcements Banner (Top priority)
+        if (activeAnnouncements.isNotEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    activeAnnouncements.forEach { ann ->
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (ann.type == "urgent") Color(0xFF2A0808) else Color(0xFF091829)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (ann.type == "urgent") Color(0xFFFF4D4D) else CyanAccent.copy(alpha = 0.6f)
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.Campaign,
+                                            contentDescription = null,
+                                            tint = if (ann.type == "urgent") Color(0xFFFF5252) else CyanAccent,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "PENGUMUMAN RESMI OWNER",
+                                            color = if (ann.type == "urgent") Color(0xFFFF5252) else CyanAccent,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Black,
+                                            letterSpacing = 0.8.sp
+                                        )
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(
+                                                if (ann.type == "urgent") Color(0xFFFF5252).copy(alpha = 0.2f)
+                                                else CyanPrimary.copy(alpha = 0.2f)
+                                            )
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = ann.type.uppercase(),
+                                            color = if (ann.type == "urgent") Color(0xFFFF5252) else CyanPrimary,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = ann.title,
+                                    color = TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = ann.content,
+                                    color = TextSecondary,
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Oleh: ${ann.authorName}",
+                                        color = TextMuted,
+                                        fontSize = 9.sp
+                                    )
+                                    if (ann.actionUrl.isNotEmpty() && ann.actionText.isNotEmpty()) {
+                                        Text(
+                                            text = "${ann.actionText} →",
+                                            color = CyanAccent,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // 1. Notice Bar 24H
         item {
             Box(
@@ -120,6 +234,76 @@ fun HomeScreen(
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        // Seller Quick Entry Bar
+        item {
+            val role = userProfile?.role ?: "user"
+            Card(
+                colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                    .clickable {
+                        if (role == "seller") {
+                            viewModel.navigateTo(Screen.SELLER_DASHBOARD)
+                        } else if (role == "owner" || role == "developer") {
+                            viewModel.navigateTo(Screen.OWNER_DASHBOARD)
+                        } else {
+                            viewModel.navigateTo(Screen.REGISTER_SELLER)
+                        }
+                    }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = if (role == "seller") Icons.Default.Storefront else Icons.Default.AddBusiness,
+                            contentDescription = null,
+                            tint = CyanAccent,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = when (role) {
+                                    "seller" -> "🏪 Dashboard Penjual Resmi (${userProfile?.shopName.orEmpty().ifEmpty { "Toko Anda" }})"
+                                    "owner", "developer" -> "👑 Panel Kontrol Owner & Developer 24H"
+                                    else -> "Mau Berjualan di ZX STORE 24 JAM?"
+                                },
+                                color = TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = when (role) {
+                                    "seller" -> "Kode Jual: ${userProfile?.salesCode.orEmpty().ifEmpty { "ZXSELL-ACTIVE" }} • Kelola Produk & Pesanan"
+                                    "owner", "developer" -> "Akses Penuh Moderasi, Seller ACC, Pengumuman, dan Laporan"
+                                    else -> "Daftarkan tokomu dengan verifikasi Google Maps & persetujuan Owner"
+                                },
+                                color = TextSecondary,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    Text(
+                        text = "Buka →",
+                        color = CyanAccent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }

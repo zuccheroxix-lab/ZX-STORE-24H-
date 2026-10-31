@@ -2,123 +2,101 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "User profile for customer or owner",
+      "description": "User profile with role: owner, developer, seller, user",
       "type": "object",
       "properties": {
         "userId": { "type": "string", "description": "Unique user ID matching auth.uid" },
         "displayName": { "type": "string", "description": "User's display name" },
+        "username": { "type": "string", "description": "Unique handle" },
         "email": { "type": "string", "description": "User's email" },
-        "role": { "type": "string", "enum": ["customer", "owner"], "description": "User role" },
+        "role": { "type": "string", "enum": ["owner", "developer", "seller", "user"], "description": "Role in ZX Store" },
+        "sellerStatus": { "type": "string", "enum": ["none", "pending", "approved", "rejected", "suspended"], "description": "Seller registration status" },
+        "sellerRegistrationId": { "type": "string", "description": "Linked registration doc ID" },
+        "shopName": { "type": "string", "description": "Approved seller shop name" },
+        "shopUsername": { "type": "string", "description": "Approved seller shop handle" },
+        "salesCode": { "type": "string", "description": "Unique seller sales code e.g. ZXSELL-XXXXXX" },
+        "isDeveloper": { "type": "boolean", "description": "System verified developer status" },
+        "isOwner": { "type": "boolean", "description": "System verified owner status" },
         "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of account creation" }
       },
       "required": ["userId", "displayName", "email", "role", "createdAt"]
     },
-    "Category": {
-      "title": "Category",
-      "description": "Product category",
+    "SellerRegistration": {
+      "title": "SellerRegistration",
+      "description": "Seller registration submitted by user with Google Maps location and shop details",
       "type": "object",
       "properties": {
-        "name": { "type": "string", "description": "Category name" },
-        "description": { "type": "string", "description": "Category description" },
-        "isActive": { "type": "boolean", "description": "Whether category is active" },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp" }
+        "userId": { "type": "string", "description": "Applicant UID" },
+        "userEmail": { "type": "string", "description": "Applicant email" },
+        "applicantName": { "type": "string", "description": "Real owner full name" },
+        "shopName": { "type": "string", "description": "Store name" },
+        "shopUsername": { "type": "string", "description": "Unique shop handle" },
+        "shopLogoUrl": { "type": "string", "description": "Store logo" },
+        "shopDescription": { "type": "string", "description": "Store description" },
+        "contactPhone": { "type": "string", "description": "Seller contact WhatsApp" },
+        "salesCode": { "type": "string", "description": "System-generated unique sales code" },
+        "category": { "type": "string", "description": "Primary sales category" },
+        "locationType": { "type": "string", "description": "STORE_FRONT or DELIVERY_AREA" },
+        "placeName": { "type": "string", "description": "Google Maps place name" },
+        "formattedAddress": { "type": "string", "description": "Formatted address from Google Maps" },
+        "latitude": { "type": "number", "description": "Latitude coordinate" },
+        "longitude": { "type": "number", "description": "Longitude coordinate" },
+        "placeId": { "type": "string", "description": "Google Maps Place ID" },
+        "mapsUrl": { "type": "string", "description": "Google Maps view URL" },
+        "status": { "type": "string", "enum": ["pending_approval", "approved", "rejected", "revision_requested", "blocked"], "description": "Approval lifecycle status" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "isActive", "createdAt"]
+      "required": ["userId", "userEmail", "shopName", "shopUsername", "salesCode", "status", "createdAt"]
+    },
+    "OwnerAnnouncement": {
+      "title": "OwnerAnnouncement",
+      "description": "Realtime official announcements and notices from Owner/Developer",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Announcement title" },
+        "content": { "type": "string", "description": "Announcement body message" },
+        "imageUrl": { "type": "string", "description": "Banner visual" },
+        "themeColorHex": { "type": "string", "description": "Hex color code" },
+        "targetAudience": { "type": "string", "enum": ["ALL", "SELLER", "USER", "DEVELOPER"] },
+        "isActive": { "type": "boolean", "description": "Active visibility" },
+        "authorEmail": { "type": "string", "description": "Author email" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "isActive", "createdAt"]
+    },
+    "StorePromo": {
+      "title": "StorePromo",
+      "description": "Promotional campaigns created by sellers or owner",
+      "type": "object",
+      "properties": {
+        "sellerId": { "type": "string", "description": "Seller UID" },
+        "title": { "type": "string", "description": "Promo campaign title" },
+        "promoCode": { "type": "string", "description": "Unique promo code" },
+        "discountPercent": { "type": "integer", "description": "Percentage discount" },
+        "isActive": { "type": "boolean", "description": "Active state" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sellerId", "title", "isActive", "createdAt"]
     },
     "Product": {
       "title": "Product",
-      "description": "Store product item",
+      "description": "Store and marketplace products",
       "type": "object",
       "properties": {
-        "name": { "type": "string", "description": "Product title" },
-        "description": { "type": "string", "description": "Product details" },
-        "categoryId": { "type": "string", "description": "Category ID reference" },
-        "price": { "type": "integer", "description": "Price in IDR" },
-        "imageUrl": { "type": "string", "description": "Image URL or asset identifier" },
-        "stock": { "type": "integer", "description": "Remaining stock quantity" },
-        "isActive": { "type": "boolean", "description": "Whether product is listed for sale" },
-        "productType": { "type": "string", "enum": ["digital", "physical"], "description": "Digital or physical merchandise" },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp" },
-        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp" }
+        "name": { "type": "string" },
+        "price": { "type": "integer" },
+        "sellerId": { "type": "string" },
+        "moderationStatus": { "type": "string", "enum": ["pending", "approved", "rejected", "revision_requested", "suspended"] },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "categoryId", "price", "stock", "isActive", "productType", "createdAt", "updatedAt"]
-    },
-    "Order": {
-      "title": "Order",
-      "description": "Customer purchase order",
-      "type": "object",
-      "properties": {
-        "orderCode": { "type": "string", "description": "Human-readable order code e.g. ZX-12345" },
-        "userId": { "type": "string", "description": "User ID of customer" },
-        "items": { "type": "array", "description": "Purchased items with quantity and price" },
-        "subtotal": { "type": "integer", "description": "Subtotal amount" },
-        "total": { "type": "integer", "description": "Total amount" },
-        "paymentMethod": { "type": "string", "description": "Payment method (QRIS)" },
-        "paymentStatus": { "type": "string", "enum": ["pending", "proof_submitted", "paid", "rejected", "expired"], "description": "Payment lifecycle status" },
-        "orderStatus": { "type": "string", "enum": ["awaiting_payment", "awaiting_verification", "processing", "completed", "cancelled"], "description": "Order fulfillment status" },
-        "customerContact": { "type": "string", "description": "Customer contact info e.g. WhatsApp or email" },
-        "digitalFulfillmentNotes": { "type": "string", "description": "Digital delivery info or fulfillment notes" },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Order creation timestamp" },
-        "updatedAt": { "type": "string", "format": "date-time", "description": "Order update timestamp" }
-      },
-      "required": ["orderCode", "userId", "items", "subtotal", "total", "paymentMethod", "paymentStatus", "orderStatus", "customerContact", "createdAt", "updatedAt"]
-    },
-    "Payment": {
-      "title": "Payment",
-      "description": "Payment proof and verification entry",
-      "type": "object",
-      "properties": {
-        "orderId": { "type": "string", "description": "Associated order ID" },
-        "userId": { "type": "string", "description": "Customer user ID" },
-        "method": { "type": "string", "description": "Payment method" },
-        "amount": { "type": "integer", "description": "Paid amount" },
-        "status": { "type": "string", "enum": ["pending", "proof_submitted", "paid", "rejected", "expired"], "description": "Payment status" },
-        "proofUrl": { "type": "string", "description": "Proof of payment URL or reference" },
-        "verifiedBy": { "type": "string", "description": "Owner UID who verified payment" },
-        "verifiedAt": { "type": "string", "format": "date-time", "description": "Verification timestamp" },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
-      },
-      "required": ["orderId", "userId", "method", "amount", "status", "createdAt"]
-    },
-    "StoreSetting": {
-      "title": "StoreSetting",
-      "description": "Store configuration and QRIS settings",
-      "type": "object",
-      "properties": {
-        "storeName": { "type": "string", "description": "Store display name" },
-        "logoUrl": { "type": "string", "description": "Store logo" },
-        "description": { "type": "string", "description": "Store tagline and description" },
-        "qrisImageUrl": { "type": "string", "description": "QRIS payment image URL or asset" },
-        "supportContact": { "type": "string", "description": "Owner support WhatsApp/contact" },
-        "storeNotice": { "type": "string", "description": "Announcement banner notice" }
-      },
-      "required": ["storeName", "supportContact"]
+      "required": ["name", "price", "sellerId", "moderationStatus", "createdAt"]
     }
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": { "$ref": "#/entities/User" },
-      "description": "User profiles"
-    },
-    "/categories/{categoryId}": {
-      "schema": { "$ref": "#/entities/Category" },
-      "description": "Product categories"
-    },
-    "/products/{productId}": {
-      "schema": { "$ref": "#/entities/Product" },
-      "description": "Store products"
-    },
-    "/orders/{orderId}": {
-      "schema": { "$ref": "#/entities/Order" },
-      "description": "Customer orders"
-    },
-    "/payments/{paymentId}": {
-      "schema": { "$ref": "#/entities/Payment" },
-      "description": "Payment submissions and verifications"
-    },
-    "/storeSettings/{settingId}": {
-      "schema": { "$ref": "#/entities/StoreSetting" },
-      "description": "Store settings"
-    }
+    "/users/{userId}": { "schema": { "$ref": "#/entities/User" } },
+    "/seller_registrations/{registrationId}": { "schema": { "$ref": "#/entities/SellerRegistration" } },
+    "/announcements/{announcementId}": { "schema": { "$ref": "#/entities/OwnerAnnouncement" } },
+    "/promos/{promoId}": { "schema": { "$ref": "#/entities/StorePromo" } },
+    "/products/{productId}": { "schema": { "$ref": "#/entities/Product" } }
   }
 }

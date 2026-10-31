@@ -5,10 +5,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.CartItem
 import com.example.data.model.ContentReport
+import com.example.data.model.OwnerAnnouncement
 import com.example.data.model.Product
 import com.example.data.model.ProductCategory
 import com.example.data.model.ProductReview
+import com.example.data.model.SellerRegistration
 import com.example.data.model.StoreOrder
+import com.example.data.model.StorePromo
 import com.example.data.model.StoreSetting
 import com.example.data.model.Story
 import com.example.data.model.UserProfile
@@ -56,6 +59,9 @@ enum class Screen {
     ALL_PRODUCTS,
     OWNER_DASHBOARD,
     MODERATION_DASHBOARD,
+    REGISTER_SELLER,
+    SELLER_DASHBOARD,
+    FRAUD_REPORT,
     ADMIN_PRODUCTS,
     ADMIN_CATEGORIES,
     ADMIN_ORDERS,
@@ -144,6 +150,21 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
     val moderationLogs: StateFlow<List<com.example.data.model.ModerationLog>> = repository.observeModerationLogs()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
+    val announcements: StateFlow<List<OwnerAnnouncement>> = repository.observeAnnouncements()
+        .catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
+
+    val promos: StateFlow<List<StorePromo>> = repository.observePromos()
+        .catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
+
+    val sellerRegistrations: StateFlow<List<SellerRegistration>> = repository.observeSellerRegistrations()
+        .catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
+
+    private val _mySellerRegistration = MutableStateFlow<SellerRegistration?>(null)
+    val mySellerRegistration: StateFlow<SellerRegistration?> = _mySellerRegistration.asStateFlow()
+
     private val _userSearchResults = MutableStateFlow<List<UserProfile>>(emptyList())
     val userSearchResults: StateFlow<List<UserProfile>> = _userSearchResults.asStateFlow()
 
@@ -151,7 +172,13 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
     val marketplaceStats: StateFlow<Map<String, Any>> = _marketplaceStats.asStateFlow()
 
     val isDeveloper: Boolean
-        get() = repository.isDeveloperEmail(auth.currentUser?.email) || _userProfile.value?.isDeveloper == true || _userProfile.value?.role == "owner"
+        get() = repository.isDeveloperEmail(auth.currentUser?.email) || _userProfile.value?.isDeveloper == true
+
+    val isOwner: Boolean
+        get() = repository.isOwnerEmail(auth.currentUser?.email) || _userProfile.value?.isOwner == true || _userProfile.value?.role == "owner"
+
+    val isSeller: Boolean
+        get() = isOwner || isDeveloper || _userProfile.value?.role == "seller" || _userProfile.value?.sellerStatus == "approved"
 
     init {
         val user = auth.currentUser
@@ -181,6 +208,12 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 launch {
+                    repository.observeMySellerRegistration(uid).collect { reg ->
+                        _mySellerRegistration.value = reg
+                    }
+                }
+
+                launch {
                     repository.observeStories(uid).collect { storyList ->
                         _stories.value = storyList
                         // Update selectedStory if open
@@ -191,7 +224,7 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                if (profile.role == "developer" || profile.role == "owner" || profile.role == "moderator" || isDeveloper) {
+                if (profile.role == "developer" || profile.role == "owner" || profile.role == "moderator" || isDeveloper || isOwner) {
                     launch {
                         repository.observeAllOrdersForAdmin().collect { orders ->
                             _allOrders.value = orders
@@ -362,7 +395,7 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateProduct(product: Product, onSuccess: () -> Unit) {
+    fun updateProduct(product: Product, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             try {
                 repository.updateProduct(product)
@@ -430,6 +463,220 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshMarketplaceStats() {
         loadMarketplaceStats()
+    }
+
+    // --- SELLER REGISTRATION & APPROVAL (V3 MARKETPLACE) ---
+    fun submitSellerRegistration(reg: SellerRegistration, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                repository.submitSellerRegistration(reg)
+                _statusMessage.value = "Pendaftaran toko Anda berhasil dikirim! Menunggu persetujuan Owner."
+                loadMarketplaceStats()
+                onSuccess()
+            } catch (e: Exception) {
+                _statusMessage.value = "Gagal kirim pendaftaran: ${e.message}"
+            }
+        }
+    }
+
+    fun approveSeller(reg: SellerRegistration, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                repository.approveSellerRegistration(
+                    registrationId = reg.id,
+                    applicantUid = reg.userId,
+                    salesCode = reg.salesCode,
+                    shopName = reg.shopName,
+                    shopUsername = reg.shopUsername,
+                    address = reg.formattedAddress,
+                    mapsUrl = reg.mapsUrl,
+                    sellerQrUrl = reg.sellerQrUrl
+                )
+                _statusMessage.value = "Toko ${reg.shopName} berhasil DISETUJUI (ACC SELLER)!"
+                loadMarketplaceStats()
+                onSuccess()
+            } catch (e: Exception) {
+                _statusMessage.value = "Gagal menyetujui seller: ${e.message}"
+            }
+        }
+    }
+
+    fun approveSeller(
+        registrationId: String,
+        userId: String,
+        shopName: String,
+        shopUsername: String,
+        address: String,
+        mapsUrl: String,
+        sellerQrUrl: String = ""
+    ) {
+        viewModelScope.launch {
+            try {
+                repository.approveSellerRegistration(
+                    registrationId = registrationId,
+                    applicantUid = userId,
+                    salesCode = repository.generateSalesCode(),
+                    shopName = shopName,
+                    shopUsername = shopUsername,
+                    address = address,
+                    mapsUrl = mapsUrl,
+                    sellerQrUrl = sellerQrUrl
+                )
+                _statusMessage.value = "Toko $shopName berhasil DISETUJUI (ACC SELLER)!"
+                loadMarketplaceStats()
+            } catch (e: Exception) {
+                _statusMessage.value = "Gagal menyetujui seller: ${e.message}"
+            }
+        }
+    }
+
+    fun rejectSeller(regId: String, reason: String) {
+        val reg = sellerRegistrations.value.find { it.id == regId }
+        val uid = reg?.userId ?: ""
+        rejectSeller(regId, uid, reason)
+    }
+
+    fun rejectSeller(regId: String, applicantUid: String, reason: String) {
+        viewModelScope.launch {
+            try {
+                repository.rejectSellerRegistration(regId, applicantUid, reason)
+                _statusMessage.value = "Pendaftaran seller ditolak: $reason"
+                loadMarketplaceStats()
+            } catch (e: Exception) {
+                _statusMessage.value = "Gagal menolak seller: ${e.message}"
+            }
+        }
+    }
+
+    fun requestSellerRevision(regId: String, notes: String) {
+        val reg = sellerRegistrations.value.find { it.id == regId }
+        val uid = reg?.userId ?: ""
+        requestSellerRevision(regId, uid, notes)
+    }
+
+    fun requestSellerRevision(regId: String, applicantUid: String, notes: String) {
+        viewModelScope.launch {
+            try {
+                repository.requestSellerRegistrationRevision(regId, applicantUid, notes)
+                _statusMessage.value = "Permintaan revisi berhasil dikirim ke calon seller."
+                loadMarketplaceStats()
+            } catch (e: Exception) {
+                _statusMessage.value = "Gagal meminta revisi: ${e.message}"
+            }
+        }
+    }
+
+    fun blockSeller(regId: String, reason: String) {
+        val reg = sellerRegistrations.value.find { it.id == regId }
+        val uid = reg?.userId ?: ""
+        blockSeller(regId, uid, reason)
+    }
+
+    fun blockSeller(regId: String, applicantUid: String, reason: String) {
+        viewModelScope.launch {
+            try {
+                repository.blockSellerRegistration(regId, applicantUid, reason)
+                _statusMessage.value = "Akun seller berhasil diblokir."
+                loadMarketplaceStats()
+            } catch (e: Exception) {
+                _statusMessage.value = "Gagal memblokir seller: ${e.message}"
+            }
+        }
+    }
+
+    // --- ANNOUNCEMENTS (OWNER REALTIME) ---
+    fun createAnnouncement(
+        title: String,
+        content: String,
+        type: String = "general",
+        actionUrl: String = "",
+        actionText: String = "",
+        onSuccess: () -> Unit = {}
+    ) {
+        val ann = OwnerAnnouncement(
+            title = title,
+            content = content,
+            type = type,
+            actionUrl = actionUrl,
+            actionText = actionText,
+            targetUrl = actionUrl,
+            authorName = "Owner Candra Jouva",
+            authorEmail = "candrajouva03@gmail.com",
+            badgeText = "PENGUMUMAN RESMI",
+            isActive = true
+        )
+        createAnnouncement(ann, onSuccess)
+    }
+
+    fun createAnnouncement(announcement: OwnerAnnouncement, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                repository.createAnnouncement(announcement)
+                _statusMessage.value = "Pengumuman resmi berhasil diterbitkan realtime!"
+                onSuccess()
+            } catch (e: Exception) {
+                _statusMessage.value = "Gagal membuat pengumuman: ${e.message}"
+            }
+        }
+    }
+
+    fun deleteAnnouncement(announcementId: String) {
+        viewModelScope.launch {
+            try {
+                repository.deleteAnnouncement(announcementId)
+                _statusMessage.value = "Pengumuman dihapus."
+            } catch (e: Exception) {
+                _statusMessage.value = "Gagal hapus pengumuman: ${e.message}"
+            }
+        }
+    }
+
+    fun toggleAnnouncement(announcementId: String, isActive: Boolean) {
+        viewModelScope.launch {
+            try {
+                repository.toggleAnnouncementActive(announcementId, isActive)
+                _statusMessage.value = if (isActive) "Pengumuman diaktifkan" else "Pengumuman dinonaktifkan"
+            } catch (e: Exception) {
+                _statusMessage.value = "Gagal mengubah status: ${e.message}"
+            }
+        }
+    }
+
+    // --- STORE PROMOS ---
+    fun createPromo(promo: StorePromo, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                repository.createPromo(promo)
+                _statusMessage.value = "Promo diskon toko berhasil diaktifkan!"
+                onSuccess()
+            } catch (e: Exception) {
+                _statusMessage.value = "Gagal membuat promo: ${e.message}"
+            }
+        }
+    }
+
+    fun deletePromo(promoId: String) {
+        viewModelScope.launch {
+            try {
+                repository.deletePromo(promoId)
+                _statusMessage.value = "Promo dihapus."
+            } catch (e: Exception) {
+                _statusMessage.value = "Gagal hapus promo: ${e.message}"
+            }
+        }
+    }
+
+    // --- FRAUD REPORT & ANTI-PENIPUAN ---
+    fun submitFraudReport(report: ContentReport, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                repository.submitReport(report)
+                _statusMessage.value = "Laporan pengaduan berhasil dikirim ke Owner & Developer!"
+                onSuccess()
+            } catch (e: Exception) {
+                _statusMessage.value = "Gagal mengirim laporan: ${e.message}"
+            }
+        }
     }
 
     // --- STORY CREATION & ACTIONS ---

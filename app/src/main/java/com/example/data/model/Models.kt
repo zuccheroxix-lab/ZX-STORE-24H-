@@ -13,13 +13,120 @@ data class UserProfile(
     val email: String = "",
     val avatarUrl: String = "",
     val bio: String = "",
-    val role: String = "customer", // "customer", "seller", "moderator", "owner"
+    val role: String = "user", // "owner", "developer", "seller", "user"
+    val sellerStatus: String = "none", // "none", "pending", "approved", "rejected", "suspended"
+    val sellerRegistrationId: String = "",
+    val shopName: String = "",
+    val shopUsername: String = "",
+    val salesCode: String = "",
+    val shopAddress: String = "",
+    val shopMapsUrl: String = "",
     val followersCount: Long = 0L,
     val followingCount: Long = 0L,
     val favorites: List<String> = emptyList(),
     val favoriteProductIds: List<String> = emptyList(),
     val sellerQrUrl: String = "",
     val isDeveloper: Boolean = false,
+    val isOwner: Boolean = false,
+    @ServerTimestamp val createdAt: Timestamp? = null
+)
+
+@IgnoreExtraProperties
+data class SellerRegistration(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val userEmail: String = "",
+    val applicantName: String = "",
+    val ownerFullName: String = "",
+    val shopName: String = "",
+    val shopUsername: String = "",
+    val shopLogoUrl: String = "",
+    val shopDescription: String = "",
+    val description: String = "",
+    val contactPhone: String = "",
+    val phone: String = "",
+    val salesCode: String = "", // e.g. ZXSELL-A89F12
+    val category: String = "JB ALL GAME",
+    val businessCategory: String = "JB ALL GAME",
+    val productTypes: List<String> = emptyList(), // "digital", "physical", "jasa"
+    val isDigitalOnly: Boolean = true,
+    val locationType: String = "STORE_FRONT", // "STORE_FRONT", "DELIVERY_AREA"
+    val deliveryCoverage: String = "Seluruh Indonesia",
+    val placeName: String = "",
+    val formattedAddress: String = "",
+    val address: String = "",
+    val latitude: Double = -6.2088,
+    val longitude: Double = 106.8456,
+    val placeId: String = "",
+    val mapsUrl: String = "",
+    val operatingHours: String = "24 Jam Nonstop",
+    val paymentMethods: List<String> = listOf("QRIS", "Transfer Bank"),
+    val sellerQrUrl: String = "",
+    val sampleProductImageUrl: String = "",
+    val serviceTerms: String = "",
+    // Initial promotional offer
+    val promoName: String = "",
+    val promoDescription: String = "",
+    val promoOriginalPrice: Long = 0L,
+    val promoDiscountedPrice: Long = 0L,
+    val promoPeriod: String = "",
+    val promoBannerUrl: String = "",
+    // Approval status
+    val status: String = "pending_approval", // "pending_approval", "approved", "rejected", "revision_requested", "blocked"
+    val rejectionReason: String = "",
+    val reviewedBy: String = "",
+    @ServerTimestamp val reviewedAt: Timestamp? = null,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@IgnoreExtraProperties
+data class OwnerAnnouncement(
+    @DocumentId val id: String = "",
+    val title: String = "",
+    val content: String = "",
+    val imageUrl: String = "",
+    val themeColorHex: String = "#00F5FF",
+    val targetUrl: String = "",
+    val targetAudience: String = "ALL", // "ALL", "SELLER", "USER", "DEVELOPER"
+    val badgeText: String = "PENGUMUMAN RESMI",
+    val type: String = "general", // "general", "urgent", "promo", "update", "maintenance"
+    val authorName: String = "Owner Candra Jouva",
+    val authorEmail: String = "candrajouva03@gmail.com",
+    val actionUrl: String = "",
+    val actionText: String = "",
+    val isActive: Boolean = true,
+    val priority: Int = 1,
+    val startDate: String = "",
+    val endDate: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@IgnoreExtraProperties
+data class StorePromo(
+    @DocumentId val id: String = "",
+    val sellerId: String = "",
+    val sellerName: String = "",
+    val salesCode: String = "",
+    val title: String = "",
+    val description: String = "",
+    val discountPercent: Int = 0,
+    val discountAmount: Long = 0L,
+    val discountType: String = "percentage", // "percentage", "fixed"
+    val originalPrice: Long = 0L,
+    val promoPrice: Long = 0L,
+    val minPurchase: Long = 0L,
+    val bannerUrl: String = "",
+    val productId: String = "",
+    val productName: String = "",
+    val promoCode: String = "",
+    val code: String = "",
+    val startDate: String = "",
+    val endDate: String = "",
+    val termsAndConditions: String = "",
+    val isActive: Boolean = true,
+    val moderationStatus: String = "approved", // "pending", "approved", "rejected"
     @ServerTimestamp val createdAt: Timestamp? = null
 )
 
@@ -41,12 +148,13 @@ data class Product(
     val categoryId: String = "",
     val categoryName: String = "",
     val price: Long = 0L,
+    val originalPrice: Long = 0L,
     val imageUrl: String = "",
     val images: List<String> = emptyList(),
     val imageUrls: List<String> = emptyList(),
     val stock: Long = 0L,
     val isActive: Boolean = true,
-    val productType: String = "digital", // "digital" or "physical"
+    val productType: String = "digital", // "digital", "physical", "jasa"
     val deliveryInfo: String = "",
     val productUrl: String = "",
     val tags: List<String> = emptyList(),
@@ -55,6 +163,7 @@ data class Product(
     val sellerAvatarUrl: String = "",
     val sellerQrUrl: String = "",
     val sellerContact: String = "",
+    val salesCode: String = "",
     val moderationStatus: String = "approved", // "pending", "approved", "rejected", "revision_requested", "suspended"
     val rejectionReason: String = "",
     val moderationNote: String = "",
@@ -157,23 +266,27 @@ data class ProductReview(
 @IgnoreExtraProperties
 data class ContentReport(
     @DocumentId val id: String = "",
-    val targetType: String = "PRODUCT", // "PRODUCT", "STORY", "USER"
+    val targetType: String = "PRODUCT", // "PRODUCT", "STORY", "USER", "SELLER", "FRAUD"
     val targetId: String = "",
     val targetTitle: String = "",
+    val category: String = "SCAM", // "SCAM", "FAKE_SELLER", "PROHIBITED_18", "STOLEN_ACCOUNT", "PRICE_MANIPULATION", "QR_ABUSE", "IMPERSONATION"
     val reporterId: String = "",
     val reporterName: String = "",
+    val reporterContact: String = "",
     val reason: String = "",
+    val evidenceUrl: String = "",
     val status: String = "pending", // "pending", "resolved", "dismissed"
+    val resolutionNote: String = "",
     @ServerTimestamp val createdAt: Timestamp? = null
 )
 
 @IgnoreExtraProperties
 data class ModerationLog(
     @DocumentId val id: String = "",
-    val targetType: String = "PRODUCT", // "PRODUCT", "STORY", "REPORT"
+    val targetType: String = "PRODUCT", // "PRODUCT", "SELLER_REGISTRATION", "STORY", "REPORT", "ANNOUNCEMENT"
     val targetId: String = "",
     val targetTitle: String = "",
-    val action: String = "", // "APPROVED", "REJECTED", "REVISION_REQUESTED", "SUSPENDED", "DELETED", "RESOLVED"
+    val action: String = "", // "APPROVED", "REJECTED", "REVISION_REQUESTED", "SUSPENDED", "DELETED", "RESOLVED", "BLOCKED"
     val reason: String = "",
     val moderatorUid: String = "",
     val moderatorEmail: String = "",
@@ -187,6 +300,8 @@ data class StoreSetting(
     val logoUrl: String = "",
     val description: String = "ZUCCHERO XANN - 24H Premium Marketplace & Digital Community Store",
     val qrisImageUrl: String = "qris_zucchero_xann",
-    val supportContact: String = "081234567890",
+    val supportContact: String = "https://wa.me/6287861072798",
+    val devContact2: String = "https://wa.me/6287835461585",
+    val officialDeveloperEmail: String = "candrajouva03@gmail.com",
     val storeNotice: String = "Buka 24 Jam nonstop. Marketplace terpercaya, verifikasi cepat dan aman."
 )
