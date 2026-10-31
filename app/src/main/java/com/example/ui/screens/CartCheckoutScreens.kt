@@ -564,6 +564,38 @@ fun QrisPaymentScreen(
             }
         }
 
+        // Buyer Safety Warning Banner
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1405)),
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, StatusWarning),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("⚠️", fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "PERINGATAN KEAMANAN BUYER",
+                            color = StatusWarning,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Periksa nama penerima pembayaran dan pastikan nominal tepat sesuai tagihan sebelum transfer. ZX STORE 24 JAM tidak pernah meminta PIN, password, atau kode OTP akun e-wallet/bank Anda.",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
+            }
+        }
+
         // Amount & Copy Card
         item {
             Card(
@@ -628,7 +660,7 @@ fun QrisPaymentScreen(
             }
         }
 
-        // QRIS Image Card (Using User's real uploaded QRIS asset!)
+        // QRIS Image Card (Supports Seller QRIS with fallback to Official ZX QRIS)
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = SurfaceDark),
@@ -640,14 +672,15 @@ fun QrisPaymentScreen(
                     modifier = Modifier.padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    val hasSellerQr = order.sellerQrUrl.isNotBlank()
                     Text(
-                        text = "Scan QRIS Resmi ZUCCHERO XANN",
+                        text = if (hasSellerQr) "Scan QRIS Pembayaran Penjual" else "Scan QRIS Resmi ZUCCHERO XANN",
                         color = TextPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
                     Text(
-                        text = "NMID: ID1026503273710 • Versi Asli",
+                        text = if (hasSellerQr) "QRIS Penjual Terdaftar • Pastikan Nama Sesuai" else "NMID: ID1026503273710 • Versi Asli",
                         color = TextSecondary,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
@@ -663,12 +696,21 @@ fun QrisPaymentScreen(
                             .clickable { isZoomed = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.qris_zucchero_xann),
-                            contentDescription = "QRIS ZUCCHERO XANN",
-                            contentScale = ContentScale.FillWidth,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        if (hasSellerQr) {
+                            coil.compose.AsyncImage(
+                                model = order.sellerQrUrl,
+                                contentDescription = "QRIS Penjual",
+                                contentScale = ContentScale.FillWidth,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            Image(
+                                painter = painterResource(id = R.drawable.qris_zucchero_xann),
+                                contentDescription = "QRIS ZUCCHERO XANN",
+                                contentScale = ContentScale.FillWidth,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))

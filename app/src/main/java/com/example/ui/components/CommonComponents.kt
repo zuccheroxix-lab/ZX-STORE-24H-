@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,9 +17,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.HourglassEmpty
@@ -37,8 +41,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,12 +49,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.ui.Screen
 import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.CyanPrimary
@@ -92,7 +97,7 @@ fun TopStoreBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -100,36 +105,52 @@ fun TopStoreBar(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
+                // Official ZX Emblem
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(CyanPrimary),
-                    contentAlignment = Alignment.Center
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .border(1.5.dp, CyanPrimary, CircleShape)
                 ) {
-                    Text(
-                        text = "ZX",
-                        color = Color(0xFF080B10),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 16.sp
+                    Image(
+                        painter = painterResource(id = R.drawable.zx_official_emblem),
+                        contentDescription = "ZX Emblem",
+                        modifier = Modifier.fillMaxWidth(),
+                        contentScale = ContentScale.Crop
                     )
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = storeName,
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(CyanPrimary.copy(alpha = 0.2f))
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "V2",
+                                color = CyanPrimary,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                     Text(
-                        text = storeName,
-                        color = TextPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = "24H DIGITAL STORE",
+                        text = "COMMUNITY MARKETPLACE • 24H",
                         color = CyanAccent,
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 10.sp,
-                        letterSpacing = 1.sp
+                        fontSize = 9.sp,
+                        letterSpacing = 0.8.sp
                     )
                 }
             }
@@ -141,7 +162,7 @@ fun TopStoreBar(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
-                        contentDescription = "Cari Produk",
+                        contentDescription = "Cari Marketplace",
                         tint = TextPrimary
                     )
                 }
@@ -193,7 +214,6 @@ fun TopStoreBar(
 @Composable
 fun StoreBottomBar(
     currentScreen: Screen,
-    isOwner: Boolean,
     onNavigate: (Screen) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -203,11 +223,12 @@ fun StoreBottomBar(
         tonalElevation = 8.dp,
         modifier = modifier.border(width = 1.dp, color = SurfaceBorder)
     ) {
+        // 1. Home
         NavigationBarItem(
             selected = currentScreen == Screen.HOME,
             onClick = { onNavigate(Screen.HOME) },
             icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-            label = { Text("Home", fontSize = 11.sp) },
+            label = { Text("Home", fontSize = 10.sp) },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Color(0xFF080B10),
                 selectedTextColor = CyanPrimary,
@@ -218,11 +239,12 @@ fun StoreBottomBar(
             modifier = Modifier.testTag("nav_home")
         )
 
+        // 2. Jelajah / Explore
         NavigationBarItem(
-            selected = currentScreen == Screen.ALL_PRODUCTS || currentScreen == Screen.CATEGORIES,
-            onClick = { onNavigate(Screen.ALL_PRODUCTS) },
-            icon = { Icon(Icons.Default.ShoppingBag, contentDescription = "Produk") },
-            label = { Text("Produk", fontSize = 11.sp) },
+            selected = currentScreen == Screen.EXPLORE || currentScreen == Screen.ALL_PRODUCTS || currentScreen == Screen.CATEGORIES,
+            onClick = { onNavigate(Screen.EXPLORE) },
+            icon = { Icon(Icons.Default.Explore, contentDescription = "Jelajah") },
+            label = { Text("Jelajah", fontSize = 10.sp) },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Color(0xFF080B10),
                 selectedTextColor = CyanPrimary,
@@ -230,14 +252,38 @@ fun StoreBottomBar(
                 unselectedIconColor = TextSecondary,
                 unselectedTextColor = TextMuted
             ),
-            modifier = Modifier.testTag("nav_products")
+            modifier = Modifier.testTag("nav_explore")
         )
 
+        // 3. Tambah (+) / Jual
         NavigationBarItem(
-            selected = currentScreen == Screen.ORDER_HISTORY,
-            onClick = { onNavigate(Screen.ORDER_HISTORY) },
-            icon = { Icon(Icons.Default.ReceiptLong, contentDescription = "Pesanan") },
-            label = { Text("Pesanan", fontSize = 11.sp) },
+            selected = currentScreen == Screen.SUBMIT_PRODUCT,
+            onClick = { onNavigate(Screen.SUBMIT_PRODUCT) },
+            icon = {
+                Icon(
+                    Icons.Default.AddCircle,
+                    contentDescription = "Jual Produk",
+                    tint = if (currentScreen == Screen.SUBMIT_PRODUCT) Color(0xFF080B10) else CyanPrimary,
+                    modifier = Modifier.size(26.dp)
+                )
+            },
+            label = { Text("Jual (+)", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF080B10),
+                selectedTextColor = CyanPrimary,
+                indicatorColor = CyanPrimary,
+                unselectedIconColor = CyanPrimary,
+                unselectedTextColor = CyanPrimary
+            ),
+            modifier = Modifier.testTag("nav_sell")
+        )
+
+        // 4. Story 24H
+        NavigationBarItem(
+            selected = currentScreen == Screen.STORY || currentScreen == Screen.STORY_VIEWER,
+            onClick = { onNavigate(Screen.STORY) },
+            icon = { Icon(Icons.Default.AutoAwesome, contentDescription = "Story") },
+            label = { Text("Story", fontSize = 10.sp) },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Color(0xFF080B10),
                 selectedTextColor = CyanPrimary,
@@ -245,33 +291,15 @@ fun StoreBottomBar(
                 unselectedIconColor = TextSecondary,
                 unselectedTextColor = TextMuted
             ),
-            modifier = Modifier.testTag("nav_orders")
+            modifier = Modifier.testTag("nav_story")
         )
 
-        if (isOwner) {
-            NavigationBarItem(
-                selected = currentScreen == Screen.OWNER_DASHBOARD ||
-                        currentScreen == Screen.ADMIN_PRODUCTS ||
-                        currentScreen == Screen.ADMIN_ORDERS,
-                onClick = { onNavigate(Screen.OWNER_DASHBOARD) },
-                icon = { Icon(Icons.Default.AdminPanelSettings, contentDescription = "Owner") },
-                label = { Text("Owner", fontSize = 11.sp) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color(0xFF080B10),
-                    selectedTextColor = CyanAccent,
-                    indicatorColor = CyanAccent,
-                    unselectedIconColor = CyanAccent.copy(alpha = 0.7f),
-                    unselectedTextColor = CyanAccent.copy(alpha = 0.7f)
-                ),
-                modifier = Modifier.testTag("nav_owner")
-            )
-        }
-
+        // 5. Profil
         NavigationBarItem(
-            selected = currentScreen == Screen.PROFILE,
+            selected = currentScreen == Screen.PROFILE || currentScreen == Screen.ORDER_HISTORY,
             onClick = { onNavigate(Screen.PROFILE) },
             icon = { Icon(Icons.Default.Person, contentDescription = "Profil") },
-            label = { Text("Profil", fontSize = 11.sp) },
+            label = { Text("Profil", fontSize = 10.sp) },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Color(0xFF080B10),
                 selectedTextColor = CyanPrimary,
@@ -294,8 +322,10 @@ fun StatusBadge(
         "proof_submitted", "awaiting_verification" -> Triple(CyanPrimary.copy(alpha = 0.15f), CyanPrimary, "Verifikasi Owner")
         "paid", "completed" -> Triple(StatusSuccess.copy(alpha = 0.15f), StatusSuccess, "Lunas / Selesai")
         "processing" -> Triple(StatusWarning.copy(alpha = 0.2f), StatusWarning, "Sedang Diproses")
-        "rejected", "cancelled" -> Triple(StatusDanger.copy(alpha = 0.15f), StatusDanger, "Dibatalkan / Ditolak")
+        "rejected", "cancelled" -> Triple(StatusDanger.copy(alpha = 0.15f), StatusDanger, "Ditolak / Batal")
         "expired" -> Triple(Color.Gray.copy(alpha = 0.2f), Color.LightGray, "Kadaluarsa")
+        "approved" -> Triple(StatusSuccess.copy(alpha = 0.15f), StatusSuccess, "Disetujui")
+        "revision_requested" -> Triple(StatusWarning.copy(alpha = 0.2f), StatusWarning, "Minta Revisi")
         else -> Triple(Color.DarkGray, Color.White, status)
     }
 

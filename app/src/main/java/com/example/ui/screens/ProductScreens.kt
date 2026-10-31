@@ -32,19 +32,32 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.RateReview
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -76,17 +89,26 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 
 @Composable
-fun AllProductsScreen(
+fun ExploreScreen(
     viewModel: StoreViewModel,
     modifier: Modifier = Modifier
 ) {
     val categories by viewModel.categories.collectAsState()
-    val products by viewModel.products.collectAsState()
+    val allProducts by viewModel.products.collectAsState()
     val selectedCategory by viewModel.selectedCategoryFilter.collectAsState()
+    val selectedType by viewModel.selectedTypeFilter.collectAsState()
+    var searchKeyword by remember { mutableStateOf("") }
 
-    val filteredProducts = remember(products, selectedCategory) {
-        if (selectedCategory == null) products
-        else products.filter { it.categoryId == selectedCategory }
+    val filteredProducts = remember(allProducts, selectedCategory, selectedType, searchKeyword) {
+        allProducts
+            .filter { it.moderationStatus == "approved" || it.moderationStatus.isEmpty() }
+            .filter { selectedCategory == null || it.categoryId == selectedCategory }
+            .filter { selectedType == null || it.productType == selectedType }
+            .filter {
+                searchKeyword.isBlank() ||
+                it.name.contains(searchKeyword, ignoreCase = true) ||
+                it.description.contains(searchKeyword, ignoreCase = true)
+            }
     }
 
     LazyColumn(
@@ -98,17 +120,97 @@ fun AllProductsScreen(
     ) {
         item {
             Text(
-                text = "Semua Produk & Game",
+                text = "Jelajah Marketplace 24H",
                 color = TextPrimary,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Pilih kategori untuk memfilter katalog produk kami.",
+                text = "Temukan produk digital, akun game, jasa, dan merchandise dari sesama komunitas.",
                 color = TextSecondary,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 2.dp)
             )
+        }
+
+        // Search Input
+        item {
+            OutlinedTextField(
+                value = searchKeyword,
+                onValueChange = { searchKeyword = it },
+                placeholder = { Text("Cari judul game, item, atau voucher...", color = TextMuted, fontSize = 12.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = CyanPrimary) },
+                trailingIcon = {
+                    if (searchKeyword.isNotEmpty()) {
+                        IconButton(onClick = { searchKeyword = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = null, tint = TextMuted)
+                        }
+                    }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = SurfaceDark,
+                    unfocusedContainerColor = SurfaceDark,
+                    focusedBorderColor = CyanPrimary,
+                    unfocusedBorderColor = SurfaceBorder
+                ),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("explore_search_field")
+            )
+        }
+
+        // Digital vs Fisik Filter Toggle
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (selectedType == null) CyanPrimary else SurfaceDark)
+                        .border(1.dp, if (selectedType == null) CyanPrimary else SurfaceBorder, RoundedCornerShape(8.dp))
+                        .clickable { viewModel.setTypeFilter(null) }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "Semua Tipe",
+                        color = if (selectedType == null) Color(0xFF080B10) else TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (selectedType == "digital") CyanPrimary else SurfaceDark)
+                        .border(1.dp, if (selectedType == "digital") CyanPrimary else SurfaceBorder, RoundedCornerShape(8.dp))
+                        .clickable { viewModel.setTypeFilter("digital") }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "⚡ Digital 24H",
+                        color = if (selectedType == "digital") Color(0xFF080B10) else TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (selectedType == "physical") CyanPrimary else SurfaceDark)
+                        .border(1.dp, if (selectedType == "physical") CyanPrimary else SurfaceBorder, RoundedCornerShape(8.dp))
+                        .clickable { viewModel.setTypeFilter("physical") }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "📦 Produk Fisik",
+                        color = if (selectedType == "physical") Color(0xFF080B10) else TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
 
         // Category Filter Chips
@@ -119,13 +221,13 @@ fun AllProductsScreen(
             ) {
                 item {
                     CategoryPill(
-                        name = "Semua (${products.size})",
+                        name = "Semua Kategori",
                         isSelected = selectedCategory == null,
                         onClick = { viewModel.setCategoryFilter(null) }
                     )
                 }
                 items(categories) { cat ->
-                    val count = products.count { it.categoryId == cat.id }
+                    val count = allProducts.count { it.categoryId == cat.id }
                     CategoryPill(
                         name = "${cat.name} ($count)",
                         isSelected = selectedCategory == cat.id,
@@ -152,7 +254,7 @@ fun AllProductsScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Tidak ada produk dalam kategori ini",
+                            text = "Tidak ada produk yang cocok dengan filter",
                             color = TextSecondary,
                             fontSize = 14.sp
                         )
@@ -180,6 +282,14 @@ fun AllProductsScreen(
             }
         }
     }
+}
+
+@Composable
+fun AllProductsScreen(
+    viewModel: StoreViewModel,
+    modifier: Modifier = Modifier
+) {
+    ExploreScreen(viewModel = viewModel, modifier = modifier)
 }
 
 @Composable
@@ -283,7 +393,19 @@ fun ProductDetailScreen(
     modifier: Modifier = Modifier
 ) {
     val product = viewModel.selectedProduct.collectAsState().value
+    val userProfile by viewModel.userProfile.collectAsState()
+    val reviews by viewModel.productReviews.collectAsState()
     var quantity by remember { mutableStateOf(1L) }
+    var selectedImageIndex by remember { mutableIntStateOf(0) }
+
+    // Dialog states
+    var showReviewDialog by remember { mutableStateOf(false) }
+    var reviewRating by remember { mutableIntStateOf(5) }
+    var reviewComment by remember { mutableStateOf("") }
+
+    var showReportDialog by remember { mutableStateOf(false) }
+    var reportReason by remember { mutableStateOf("") }
+    var reportDetails by remember { mutableStateOf("") }
 
     if (product == null) {
         Box(
@@ -297,14 +419,24 @@ fun ProductDetailScreen(
         return
     }
 
+    val gallery = remember(product) {
+        val list = mutableListOf<String>()
+        if (product.imageUrl.isNotBlank()) list.add(product.imageUrl)
+        list.addAll(product.imageUrls.filter { it.isNotBlank() && it != product.imageUrl })
+        if (list.isEmpty()) listOf("https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800")
+        else list
+    }
+
+    val isFavorite = userProfile?.favoriteProductIds?.contains(product.id) == true
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .background(BackgroundBlack),
-        contentPadding = PaddingValues(bottom = 24.dp)
+        contentPadding = PaddingValues(bottom = 32.dp)
     ) {
+        // 1. Top Bar
         item {
-            // Top Nav
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -312,7 +444,7 @@ fun ProductDetailScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = { viewModel.navigateTo(Screen.ALL_PRODUCTS) },
+                    onClick = { viewModel.navigateTo(Screen.EXPLORE) },
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
@@ -329,21 +461,57 @@ fun ProductDetailScreen(
                     text = "Detail Produk",
                     color = TextPrimary,
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
                 )
+
+                // Favorite Button
+                IconButton(
+                    onClick = { viewModel.toggleFavorite(product.id) },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(SurfaceElevated)
+                        .testTag("detail_fav_btn")
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Favorit",
+                        tint = if (isFavorite) Color(0xFFFF4081) else TextSecondary
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Report Button
+                IconButton(
+                    onClick = { showReportDialog = true },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(SurfaceElevated)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Flag,
+                        contentDescription = "Laporkan",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
 
-        // Product Image
+        // 2. Main Product Image Gallery
         item {
+            val currentImg = gallery.getOrElse(selectedImageIndex) { gallery.first() }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(240.dp)
+                    .height(250.dp)
                     .background(SurfaceElevated)
             ) {
                 AsyncImage(
-                    model = product.imageUrl.ifBlank { "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800" },
+                    model = currentImg,
                     contentDescription = product.name,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -359,16 +527,48 @@ fun ProductDetailScreen(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = if (product.productType == "digital") "⚡ PRODUK DIGITAL 24H" else "📦 PRODUK FISIK",
+                        text = if (product.productType == "digital") "⚡ DIGITAL 24 JAM" else "📦 PRODUK FISIK",
                         color = Color(0xFF080B10),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
+
+            // Multiple Thumbnail Selector
+            if (gallery.size > 1) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(gallery.indices.toList()) { idx ->
+                        val isSelected = selectedImageIndex == idx
+                        Box(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(
+                                    2.dp,
+                                    if (isSelected) CyanPrimary else SurfaceBorder,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .clickable { selectedImageIndex = idx }
+                        ) {
+                            AsyncImage(
+                                model = gallery[idx],
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+            }
         }
 
-        // Title and Price
+        // 3. Title, Price, & Stock
         item {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
@@ -388,7 +588,7 @@ fun ProductDetailScreen(
                     Text(
                         text = formatRupiah(product.price),
                         color = CyanPrimary,
-                        fontSize = 22.sp,
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.Black
                     )
 
@@ -410,7 +610,7 @@ fun ProductDetailScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Quantity selector
                 Row(
@@ -452,7 +652,7 @@ fun ProductDetailScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Action Buttons
                 Row(
@@ -460,9 +660,7 @@ fun ProductDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Button(
-                        onClick = {
-                            viewModel.addToCart(product, quantity)
-                        },
+                        onClick = { viewModel.addToCart(product, quantity) },
                         enabled = product.stock > 0,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = SurfaceElevated,
@@ -499,43 +697,433 @@ fun ProductDetailScreen(
                         Text("Beli Sekarang", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
+            }
+        }
 
-                Spacer(modifier = Modifier.height(24.dp))
+        // 4. Seller Info Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(CyanPrimary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = (product.sellerName.ifBlank { "ZX" }).take(1).uppercase(),
+                            color = Color(0xFF080B10),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
 
-                // Description
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = product.sellerName.ifBlank { "ZX Official Merchant" },
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("✓", color = CyanPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            text = "Penjual Terverifikasi ZX Store",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.viewSellerProfile(product.sellerId, product.sellerName)
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Storefront, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Kunjungi", fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
+        // 5. Buyer Safety Banner & Seller Payment QR Preview
+        item {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                // Safety Warning
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1405)),
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, StatusWarning),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Deskripsi & Petunjuk Pembelian",
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = product.description.ifBlank { "Tidak ada deskripsi tambahan." },
-                            color = TextSecondary,
-                            fontSize = 13.sp,
-                            lineHeight = 18.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        if (product.productType == "digital") {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("⚠️", fontSize = 18.sp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
                             Text(
-                                text = "⚡ Petunjuk Produk Digital:\n1. Masukkan nomor WhatsApp aktif pada saat checkout.\n2. Lakukan pembayaran via QRIS ZUCCHERO XANN.\n3. Unggah bukti pembayaran.\n4. Voucher / Diamonds akan segera dikirimkan ke kontak Anda 24 jam nonstop.",
-                                color = CyanAccent,
-                                fontSize = 12.sp,
-                                lineHeight = 17.sp
+                                text = "KEAMANAN TRANSAKSI BUYER",
+                                color = StatusWarning,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
                             )
+                            Text(
+                                text = "Periksa nama penerima & nominal sebelum membayar. ZX STORE 24 JAM tidak pernah meminta PIN / OTP e-wallet Anda.",
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+                }
+
+                // Seller QR preview if provided
+                if (product.sellerQrUrl.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color.White)
+                                    .padding(4.dp)
+                            ) {
+                                AsyncImage(
+                                    model = product.sellerQrUrl,
+                                    contentDescription = "QRIS Penjual",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "QRIS Pembayaran Milik Penjual",
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = "Tersedia saat pembayaran checkout",
+                                    color = CyanAccent,
+                                    fontSize = 11.sp
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+
+        // 6. Delivery & Fulfillment Info
+        if (product.deliveryInfo.isNotBlank()) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = "🚚 Cara Pengiriman / Penyerahan Produk",
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = product.deliveryInfo,
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        // 7. Product Description
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Deskripsi Produk",
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = product.description.ifBlank { "Tidak ada deskripsi tambahan." },
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+        }
+
+        // 8. Reviews & Ratings Section
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Ulasan & Penilaian (${reviews.size})",
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                        if (reviews.isNotEmpty()) {
+                            val avgRating = reviews.map { it.rating }.average()
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("★", color = Color(0xFFFFD700), fontSize = 14.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = String.format("%.1f / 5.0", avgRating),
+                                    color = CyanAccent,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = { showReviewDialog = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SurfaceElevated,
+                            contentColor = CyanPrimary
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CyanPrimary),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.RateReview, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Tulis Ulasan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (reviews.isEmpty()) {
+                    Text(
+                        text = "Belum ada ulasan untuk produk ini. Jadilah pembeli pertama yang memberikan testimoni!",
+                        color = TextMuted,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+
+        items(reviews) { rev ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = rev.userName.ifBlank { "User ZX" },
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                        Row {
+                            repeat(rev.rating) {
+                                Text("★", color = Color(0xFFFFD700), fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    if (rev.comment.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = rev.comment,
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Write Review Dialog
+    if (showReviewDialog) {
+        AlertDialog(
+            onDismissRequest = { showReviewDialog = false },
+            title = { Text("Tulis Ulasan Produk", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("Beri Bintang:", color = TextSecondary, fontSize = 12.sp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    ) {
+                        (1..5).forEach { star ->
+                            Text(
+                                text = if (star <= reviewRating) "★" else "☆",
+                                color = if (star <= reviewRating) Color(0xFFFFD700) else TextMuted,
+                                fontSize = 28.sp,
+                                modifier = Modifier.clickable { reviewRating = star }
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        value = reviewComment,
+                        onValueChange = { reviewComment = it },
+                        placeholder = { Text("Tulis pengalaman belanja Anda...", color = TextMuted, fontSize = 12.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = SurfaceDark,
+                            unfocusedContainerColor = SurfaceDark,
+                            focusedBorderColor = CyanPrimary,
+                            unfocusedBorderColor = SurfaceBorder
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.submitReview(product.id, reviewRating, reviewComment)
+                        showReviewDialog = false
+                        reviewComment = ""
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CyanPrimary, contentColor = Color(0xFF080B10))
+                ) {
+                    Text("Kirim Ulasan", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReviewDialog = false }) {
+                    Text("Batal", color = TextSecondary)
+                }
+            },
+            containerColor = SurfaceElevated
+        )
+    }
+
+    // Report Dialog
+    if (showReportDialog) {
+        AlertDialog(
+            onDismissRequest = { showReportDialog = false },
+            title = { Text("Laporkan Produk", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        text = "Pilih alasan pelaporan produk ini untuk ditinjau oleh tim moderator ZX:",
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = reportReason,
+                        onValueChange = { reportReason = it },
+                        placeholder = { Text("Alasan (penipuan, produk palsu, dll)", color = TextMuted, fontSize = 12.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = SurfaceDark,
+                            unfocusedContainerColor = SurfaceDark,
+                            focusedBorderColor = CyanPrimary,
+                            unfocusedBorderColor = SurfaceBorder
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = reportDetails,
+                        onValueChange = { reportDetails = it },
+                        placeholder = { Text("Detail tambahan...", color = TextMuted, fontSize = 12.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = SurfaceDark,
+                            unfocusedContainerColor = SurfaceDark,
+                            focusedBorderColor = CyanPrimary,
+                            unfocusedBorderColor = SurfaceBorder
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.submitReport("product", product.id, reportReason, reportDetails)
+                        showReportDialog = false
+                        reportReason = ""
+                        reportDetails = ""
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = com.example.ui.theme.StatusDanger)
+                ) {
+                    Text("Laporkan", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReportDialog = false }) {
+                    Text("Batal", color = TextSecondary)
+                }
+            },
+            containerColor = SurfaceElevated
+        )
     }
 }
 

@@ -38,88 +38,110 @@ service cloud.firestore {
 
     // User profiles
     match /users/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow get, list: if isSignedIn();
       allow create: if isSignedIn() &&
                        isValidId(userId) &&
                        request.auth.uid == userId &&
                        incoming().userId == request.auth.uid &&
-                       incoming().displayName is string && incoming().displayName.size() <= 100 &&
-                       incoming().email is string && incoming().email.size() <= 150 &&
-                       (incoming().role == 'customer' || (incoming().role == 'owner' && isAdmin())) &&
                        incoming().createdAt is timestamp && incoming().createdAt <= request.time;
-      allow update: if isSignedIn() &&
-                       (request.auth.uid == userId || isAdmin()) &&
-                       incoming().userId == existing().userId &&
-                       incoming().createdAt == existing().createdAt &&
-                       incoming().displayName is string && incoming().displayName.size() <= 100 &&
-                       (incoming().role == existing().role || isAdmin()) &&
-                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role']);
+      allow update: if isSignedIn() && (
+                       (request.auth.uid == userId && !incoming().diff(existing()).affectedKeys().hasAny(['role', 'isDeveloper', 'email'])) ||
+                       isAdmin()
+                     );
       allow delete: if isAdmin();
+    }
+
+    // Follows
+    match /follows/{followId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && incoming().followerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
     }
 
     // Product Categories
     match /categories/{categoryId} {
       allow get, list: if isSignedIn();
-      allow create: if isAdmin() &&
-                       isValidId(categoryId) &&
-                       incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 100 &&
-                       incoming().isActive is bool &&
-                       incoming().createdAt is timestamp && incoming().createdAt <= request.time;
-      allow update: if isAdmin() &&
-                       incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 100 &&
-                       incoming().isActive is bool;
-      allow delete: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
-    // Store Products
+    // Marketplace Products
     match /products/{productId} {
       allow get, list: if isSignedIn();
-      allow create: if isAdmin() &&
+      // Allow any logged in user to submit a product to the marketplace
+      allow create: if isSignedIn() &&
                        isValidId(productId) &&
-                       incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 200 &&
-                       incoming().categoryId is string &&
+                       incoming().sellerId == request.auth.uid &&
+                       incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 250 &&
                        incoming().price is int && incoming().price >= 0 &&
                        incoming().stock is int && incoming().stock >= 0 &&
-                       incoming().isActive is bool &&
-                       incoming().productType in ['digital', 'physical'] &&
-                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
-                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
-      allow update: if isAdmin() &&
-                       incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 200 &&
-                       incoming().price is int && incoming().price >= 0 &&
-                       incoming().stock is int && incoming().stock >= 0 &&
-                       incoming().isActive is bool &&
-                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
-      allow delete: if isAdmin();
+                       (incoming().moderationStatus in ['pending', 'approved', 'rejected', 'revision_requested', 'suspended']) &&
+                       // Regular users can only submit with status 'pending' unless admin
+                       (isAdmin() || incoming().moderationStatus == 'pending');
+      // Sellers can update their own products, or admins can moderate
+      allow update: if isSignedIn() &&
+                       ((resource.data.sellerId == request.auth.uid) || isAdmin());
+      allow delete: if isSignedIn() &&
+                       ((resource.data.sellerId == request.auth.uid) || isAdmin());
+    }
+
+    // Stories (24H Social System)
+    match /stories/{storyId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() &&
+                       isValidId(storyId) &&
+                       incoming().authorId == request.auth.uid &&
+                       incoming().mediaType in ['PHOTO', 'VIDEO', 'TEXT', 'TESTIMONIAL', 'PRODUCT_LINKED'] &&
+                       incoming().privacyMode in ['PUBLIC', 'FOLLOWERS', 'PRIVATE', 'SELECTED_ACCOUNTS', 'HIDE_FROM'] &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time;
+      allow update: if isSignedIn() && (
+                       resource.data.authorId == request.auth.uid ||
+                       isAdmin() ||
+                       incoming().diff(existing()).affectedKeys().hasOnly(['viewers', 'viewersCount', 'viewersProfiles', 'reactions', 'userReactions'])
+                     );
+      allow delete: if isSignedIn() &&
+                       ((resource.data.authorId == request.auth.uid) || isAdmin());
+    }
+
+    // Reviews
+    match /reviews/{reviewId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() &&
+                       isValidId(reviewId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().rating >= 1 && incoming().rating <= 5;
+      allow update, delete: if isSignedIn() &&
+                       ((resource.data.userId == request.auth.uid) || isAdmin());
+    }
+
+    // Content Reports
+    match /reports/{reportId} {
+      allow get, list: if isAdmin();
+      allow create: if isSignedIn() &&
+                       isValidId(reportId) &&
+                       incoming().reporterId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // Moderation Logs
+    match /moderation_logs/{logId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin() &&
+                       isValidId(logId) &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time;
+      allow update, delete: if false; // immutable audit log
     }
 
     // Orders
     match /orders/{orderId} {
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() &&
                        isValidId(orderId) &&
                        incoming().userId == request.auth.uid &&
-                       incoming().orderCode is string && incoming().orderCode.size() <= 64 &&
-                       incoming().items is list && incoming().items.size() > 0 && incoming().items.size() <= 50 &&
-                       incoming().subtotal is int && incoming().subtotal >= 0 &&
-                       incoming().total is int && incoming().total >= 0 &&
-                       incoming().paymentMethod is string &&
-                       incoming().paymentStatus in ['pending', 'proof_submitted'] &&
-                       incoming().orderStatus in ['awaiting_payment', 'awaiting_verification'] &&
-                       incoming().customerContact is string && incoming().customerContact.size() <= 150 &&
-                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
-                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time;
       allow update: if isSignedIn() && (
-                       (request.auth.uid == existing().userId &&
-                        incoming().userId == existing().userId &&
-                        incoming().createdAt == existing().createdAt &&
-                        incoming().total == existing().total &&
-                        incoming().orderCode == existing().orderCode &&
-                        incoming().paymentStatus in ['pending', 'proof_submitted'] &&
-                        incoming().orderStatus in ['awaiting_payment', 'awaiting_verification'] &&
-                        incoming().diff(existing()).affectedKeys().hasOnly(['paymentStatus', 'orderStatus', 'customerContact', 'updatedAt'])) ||
+                       (request.auth.uid == existing().userId) ||
+                       (request.auth.uid == existing().sellerId) ||
                        isAdmin()
                      );
       allow delete: if isAdmin();
@@ -127,23 +149,13 @@ service cloud.firestore {
 
     // Payments
     match /payments/{paymentId} {
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() &&
                        isValidId(paymentId) &&
                        incoming().userId == request.auth.uid &&
-                       incoming().orderId is string &&
-                       incoming().method is string &&
-                       incoming().amount is int && incoming().amount >= 0 &&
-                       incoming().status in ['pending', 'proof_submitted'] &&
                        incoming().createdAt is timestamp && incoming().createdAt <= request.time;
       allow update: if isSignedIn() && (
-                       (request.auth.uid == existing().userId &&
-                        incoming().userId == existing().userId &&
-                        incoming().orderId == existing().orderId &&
-                        incoming().amount == existing().amount &&
-                        incoming().status == 'proof_submitted' &&
-                        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'proofUrl'])) ||
+                       (request.auth.uid == existing().userId) ||
                        isAdmin()
                      );
       allow delete: if isAdmin();

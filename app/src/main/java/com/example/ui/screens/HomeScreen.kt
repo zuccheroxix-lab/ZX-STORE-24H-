@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +54,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import androidx.compose.foundation.Image
+import androidx.compose.material.icons.filled.AddBusiness
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import com.example.data.model.Product
 import com.example.data.model.ProductCategory
 import com.example.ui.Screen
@@ -76,8 +82,13 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val categories by viewModel.categories.collectAsState()
-    val products by viewModel.products.collectAsState()
+    val allProducts by viewModel.products.collectAsState()
     val storeSettings by viewModel.storeSettings.collectAsState()
+
+    // Filter to active/approved marketplace products
+    val products = remember(allProducts) {
+        allProducts.filter { it.moderationStatus == "approved" || it.moderationStatus.isEmpty() }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -114,7 +125,15 @@ fun HomeScreen(
             }
         }
 
-        // 2. Hero Banner
+        // 2. 24H Story Social Carousel
+        item {
+            StoryCarousel(
+                viewModel = viewModel,
+                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+            )
+        }
+
+        // 3. Hero Banner with Official Emblem
         item {
             Box(
                 modifier = Modifier
@@ -124,9 +143,9 @@ fun HomeScreen(
                     .background(
                         Brush.linearGradient(
                             listOf(
-                                Color(0xFF0D1B2A),
-                                Color(0xFF1B263B),
-                                Color(0xFF003049)
+                                Color(0xFF07131F),
+                                Color(0xFF0F2537),
+                                Color(0xFF04101A)
                             )
                         )
                     )
@@ -147,7 +166,7 @@ fun HomeScreen(
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "24 JAM NONSTOP",
+                                text = "MARKETPLACE 24 JAM",
                                 color = CyanPrimary,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
@@ -163,28 +182,63 @@ fun HomeScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // Official Emblem Graphic
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF040B11))
+                                .border(1.5.dp, CyanPrimary, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.zx_official_emblem),
+                                contentDescription = "ZX Official Emblem",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "ZX STORE 24H",
+                                color = TextPrimary,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                            Text(
+                                text = "Komunitas Jual-Beli Terpercaya",
+                                color = CyanAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "ZX STORE 24H",
-                        color = TextPrimary,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Black
-                    )
-
-                    Text(
-                        text = "Pusat Top Up Game Tercepat, Voucher Digital & Official Merchandise.",
+                        text = "Pusat jual beli akun game, item digital, voucher 24 jam & produk fisik antar sesama pengguna dengan verifikasi QRIS resmi.",
                         color = TextSecondary,
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp,
-                        modifier = Modifier.padding(top = 4.dp)
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Button(
-                            onClick = { viewModel.navigateTo(Screen.ALL_PRODUCTS) },
+                            onClick = { viewModel.navigateTo(Screen.EXPLORE) },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = CyanPrimary,
                                 contentColor = Color(0xFF080B10)
@@ -193,7 +247,7 @@ fun HomeScreen(
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                             modifier = Modifier.testTag("hero_browse_btn")
                         ) {
-                            Text(text = "Belanja Sekarang", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(text = "Jelajah Produk", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(6.dp))
                             Icon(
                                 imageVector = Icons.Default.ArrowForward,
@@ -203,24 +257,24 @@ fun HomeScreen(
                         }
 
                         Button(
-                            onClick = { viewModel.navigateTo(Screen.HELP) },
+                            onClick = { viewModel.navigateTo(Screen.SUBMIT_PRODUCT) },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = SurfaceDark,
-                                contentColor = TextPrimary
+                                contentColor = CyanPrimary
                             ),
                             shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CyanPrimary.copy(alpha = 0.7f)),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                            modifier = Modifier.testTag("hero_help_btn")
+                            modifier = Modifier.testTag("hero_sell_btn")
                         ) {
                             Icon(
-                                imageVector = Icons.Default.SupportAgent,
+                                imageVector = Icons.Default.AddBusiness,
                                 contentDescription = null,
                                 tint = CyanPrimary,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Bantuan", fontSize = 12.sp)
+                            Text(text = "Mulai Jual", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

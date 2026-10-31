@@ -33,6 +33,10 @@ import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -40,19 +44,25 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.SecondaryIndicator
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.example.data.model.ContentReport
+import com.example.data.model.ModerationLog
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,11 +104,26 @@ fun OwnerDashboardScreen(
 ) {
     val orders by viewModel.allOrders.collectAsState()
     val products by viewModel.products.collectAsState()
+    val allModerationProducts by viewModel.allProductsForModeration.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val storeSettings by viewModel.storeSettings.collectAsState()
+    val reports by viewModel.reports.collectAsState()
+    val moderationLogs by viewModel.moderationLogs.collectAsState()
+    val stats by viewModel.marketplaceStats.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
+
+    val isDeveloper = viewModel.isDeveloper
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabTitles = listOf("Ringkasan", "Pesanan & QRIS", "Produk", "Kategori", "Pengaturan")
+    val tabTitles = listOf(
+        "Statistik Riil",
+        "Moderasi (${allModerationProducts.count { it.moderationStatus == "pending" }})",
+        "Laporan (${reports.count { it.status == "pending" }})",
+        "Pesanan & QRIS",
+        "Kategori",
+        "Log Audit",
+        "Pengaturan"
+    )
 
     // Stats calculations
     val totalSales = remember(orders) {
@@ -119,12 +144,17 @@ fun OwnerDashboardScreen(
     var showAddProductDialog by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
 
+    // Moderation Action Dialog
+    var productToModerate by remember { mutableStateOf<Product?>(null) }
+    var targetModerationStatus by remember { mutableStateOf("") }
+    var moderationReasonInput by remember { mutableStateOf("") }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(BackgroundBlack)
     ) {
-        // Header
+        // Developer Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -142,18 +172,25 @@ fun OwnerDashboardScreen(
             }
             Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "DASHBOARD OWNER",
-                    color = CyanAccent,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "⚡ DEVELOPER DASHBOARD",
+                        color = CyanAccent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                }
                 Text(
                     text = "ZX STORE 24H",
                     color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Black
+                )
+                Text(
+                    text = "Otorisasi: candrajouva03@gmail.com",
+                    color = TextMuted,
+                    fontSize = 11.sp
                 )
             }
             Box(
@@ -163,17 +200,41 @@ fun OwnerDashboardScreen(
                     .border(1.dp, CyanPrimary, RoundedCornerShape(6.dp))
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text("OWNER MODE", color = CyanPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("⚡ DEVELOPER", color = CyanPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
 
-        // Tabs
-        TabRow(
+        // Access Notice if not developer
+        if (!isDeveloper) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = StatusDanger.copy(alpha = 0.15f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, StatusDanger),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Shield, contentDescription = null, tint = StatusDanger, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Akses Developer Terkunci. Hanya akun resmi candrajouva03@gmail.com yang berhak mengelola backend.",
+                        color = TextPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        // Scrollable Tabs
+        ScrollableTabRow(
             selectedTabIndex = selectedTabIndex,
             containerColor = SurfaceDark,
             contentColor = CyanPrimary,
+            edgePadding = 12.dp,
             indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
+                SecondaryIndicator(
                     Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
                     color = CyanPrimary
                 )
@@ -197,38 +258,115 @@ fun OwnerDashboardScreen(
 
         // Tab Content
         when (selectedTabIndex) {
-            0 -> OwnerOverviewTab(
+            0 -> DeveloperRealStatsTab(
+                stats = stats,
                 totalSales = totalSales,
-                totalOrders = orders.size,
-                awaitingVerification = awaitingVerification,
-                awaitingPayment = awaitingPayment,
-                completedOrders = completedOrders,
-                activeProducts = products.size,
-                recentOrders = orders.take(5),
-                onVerifyClick = { orderToVerify = it },
-                onViewAllOrders = { selectedTabIndex = 1 }
+                ordersCount = orders.size,
+                onRefresh = { viewModel.refreshMarketplaceStats() }
             )
-            1 -> OwnerOrdersTab(
+            1 -> DeveloperModerationTab(
+                products = if (allModerationProducts.isNotEmpty()) allModerationProducts else products,
+                onModerate = { prod, targetStatus ->
+                    productToModerate = prod
+                    targetModerationStatus = targetStatus
+                    moderationReasonInput = ""
+                }
+            )
+            2 -> DeveloperReportsTab(
+                reports = reports,
+                onResolve = { report, resolution ->
+                    viewModel.resolveReport(report.id, resolution, report.targetType, report.targetId)
+                }
+            )
+            3 -> OwnerOrdersTab(
                 orders = orders,
                 onVerifyClick = { orderToVerify = it }
             )
-            2 -> OwnerProductsTab(
-                products = products,
-                categories = categories,
-                onAddProduct = { showAddProductDialog = true },
-                onToggleProduct = { prod ->
-                    viewModel.saveProduct(prod.copy(isActive = !prod.isActive)) {}
-                }
-            )
-            3 -> OwnerCategoriesTab(
+            4 -> OwnerCategoriesTab(
                 categories = categories,
                 onAddCategory = { showAddCategoryDialog = true }
             )
-            4 -> OwnerSettingsTab(
+            5 -> DeveloperAuditLogsTab(
+                logs = moderationLogs
+            )
+            6 -> OwnerSettingsTab(
                 storeSettings = storeSettings,
                 onSave = { updated -> viewModel.updateStoreSettings(updated) }
             )
         }
+    }
+
+    // Moderation Action Reason Dialog
+    if (productToModerate != null) {
+        val prod = productToModerate!!
+        val actionLabel = when (targetModerationStatus) {
+            "approved" -> "Setujui Produk"
+            "rejected" -> "Tolak Produk"
+            "revision_requested" -> "Minta Revisi Produk"
+            "suspended" -> "Tangguhkan Produk"
+            else -> "Moderasi Produk"
+        }
+
+        AlertDialog(
+            onDismissRequest = { productToModerate = null },
+            containerColor = SurfaceDark,
+            title = {
+                Text(actionLabel, color = TextPrimary, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Produk: ${prod.name}",
+                        color = CyanAccent,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        text = "Penjual: ${prod.sellerName}",
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = moderationReasonInput,
+                        onValueChange = { moderationReasonInput = it },
+                        label = { Text("Alasan / Catatan untuk Penjual (Wajib jika tolak/revisi)") },
+                        placeholder = { Text("Contoh: Foto kurang jelas, atau harga tidak sesuai...") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = CyanPrimary,
+                            focusedLabelColor = CyanPrimary,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.moderateProductWithAudit(
+                            productId = prod.id,
+                            status = targetModerationStatus,
+                            reason = moderationReasonInput.ifBlank { "Tindakan moderasi developer resmi" },
+                            title = prod.name
+                        )
+                        productToModerate = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (targetModerationStatus == "approved") StatusSuccess else StatusDanger
+                    )
+                ) {
+                    Text("Konfirmasi Tindakan", color = if (targetModerationStatus == "approved") Color(0xFF080B10) else Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { productToModerate = null }) {
+                    Text("Batal", color = TextSecondary)
+                }
+            }
+        )
     }
 
     // Verify Payment Dialog
@@ -942,6 +1080,414 @@ fun MetricCard(
             Text(title, color = TextSecondary, fontSize = 11.sp)
             Spacer(modifier = Modifier.height(4.dp))
             Text(value, color = color, fontSize = 17.sp, fontWeight = FontWeight.Black)
+        }
+    }
+}
+
+@Composable
+fun DeveloperRealStatsTab(
+    stats: Map<String, Any>,
+    totalSales: Long,
+    ordersCount: Int,
+    onRefresh: () -> Unit
+) {
+    val totalGmv = (stats["totalGmv"] as? Long) ?: totalSales
+    val approvedProds = (stats["approvedProducts"] as? Int) ?: 0
+    val pendingProds = (stats["pendingProducts"] as? Int) ?: 0
+    val rejectedProds = (stats["rejectedProducts"] as? Int) ?: 0
+    val totalSellers = (stats["totalSellers"] as? Int) ?: 0
+    val totalOrders = (stats["totalOrders"] as? Int) ?: ordersCount
+    val paidOrders = (stats["paidOrders"] as? Int) ?: 0
+    val totalUsers = (stats["totalUsers"] as? Int) ?: 0
+    val totalStories = (stats["totalStories"] as? Int) ?: 0
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("Statistik Realtime Marketplace", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Data riil tersinkronisasi langsung dari Cloud Firestore", color = CyanAccent, fontSize = 11.sp)
+                }
+                IconButton(
+                    onClick = onRefresh,
+                    modifier = Modifier.size(34.dp).clip(CircleShape).background(SurfaceElevated)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Segarkan Data", tint = CyanPrimary, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+
+        // GMV Banner
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, CyanPrimary),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text("TOTAL GMV RIIL (TRANSAKSI SELESAI)", color = CyanAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(formatRupiah(totalGmv), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Black)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Berdasarkan total nominal pesanan QRIS yang telah disetujui & lunas.", color = TextSecondary, fontSize = 12.sp)
+                }
+            }
+        }
+
+        // Metric Grid 1: Products
+        item {
+            Text("Distribusi Produk Marketplace", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MetricCard(
+                    title = "Disetujui (Katalog)",
+                    value = "$approvedProds",
+                    color = StatusSuccess,
+                    modifier = Modifier.weight(1f)
+                )
+                MetricCard(
+                    title = "Menunggu Moderasi",
+                    value = "$pendingProds",
+                    color = StatusWarning,
+                    modifier = Modifier.weight(1f)
+                )
+                MetricCard(
+                    title = "Revisi / Ditolak",
+                    value = "$rejectedProds",
+                    color = StatusDanger,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        // Metric Grid 2: Platform Activity
+        item {
+            Text("Aktivitas Pengguna & Penjual", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MetricCard(
+                    title = "Penjual Aktif",
+                    value = "$totalSellers",
+                    color = CyanPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                MetricCard(
+                    title = "Pesanan Lunas",
+                    value = "$paidOrders / $totalOrders",
+                    color = StatusSuccess,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        // Metric Grid 3: Community & Social
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MetricCard(
+                    title = "Akun Terdaftar",
+                    value = "$totalUsers",
+                    color = TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                MetricCard(
+                    title = "Story 24 Jam Aktif",
+                    value = "$totalStories",
+                    color = CyanAccent,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DeveloperModerationTab(
+    products: List<Product>,
+    onModerate: (Product, String) -> Unit
+) {
+    var selectedFilter by remember { mutableStateOf("pending") } // "all", "pending", "approved", "revision_requested", "rejected"
+
+    val filtered = remember(products, selectedFilter) {
+        if (selectedFilter == "all") products
+        else products.filter { it.moderationStatus == selectedFilter }
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Column {
+                Text("Antrian Moderasi Marketplace", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Semua produk yang diajukan pengguna harus disetujui developer sebelum muncul di katalog", color = TextSecondary, fontSize = 11.sp)
+            }
+        }
+
+        // Filter chips
+        item {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val filters = listOf(
+                    "pending" to "Menunggu (${products.count { it.moderationStatus == "pending" }})",
+                    "approved" to "Disetujui (${products.count { it.moderationStatus == "approved" }})",
+                    "revision_requested" to "Revisi (${products.count { it.moderationStatus == "revision_requested" }})",
+                    "rejected" to "Ditolak (${products.count { it.moderationStatus == "rejected" || it.moderationStatus == "suspended" }})",
+                    "all" to "Semua (${products.size})"
+                )
+                items(filters) { (f, label) ->
+                    val isSelected = selectedFilter == f
+                    Surface(
+                        color = if (isSelected) CyanPrimary else SurfaceDark,
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanPrimary else SurfaceBorder),
+                        modifier = Modifier.clickable { selectedFilter = f }
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (isSelected) Color(0xFF080B10) else TextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        if (filtered.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Tidak ada produk dalam antrian filter ini", color = TextMuted, fontSize = 13.sp)
+                }
+            }
+        } else {
+            items(filtered) { prod ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(prod.name, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("Penjual: ${prod.sellerName} • ${prod.categoryName}", color = TextSecondary, fontSize = 11.sp)
+                                Text(formatRupiah(prod.price), color = CyanPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                            StatusBadge(status = prod.moderationStatus)
+                        }
+
+                        if (prod.description.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(prod.description, color = TextSecondary, fontSize = 12.sp, maxLines = 2)
+                        }
+
+                        if (prod.rejectionReason.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                color = StatusDanger.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "Catatan: ${prod.rejectionReason}",
+                                    color = StatusDanger,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(8.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Moderation Action Buttons
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (prod.moderationStatus != "approved") {
+                                Button(
+                                    onClick = { onModerate(prod, "approved") },
+                                    colors = ButtonDefaults.buttonColors(containerColor = StatusSuccess, contentColor = Color(0xFF080B10)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1f).height(34.dp)
+                                ) {
+                                    Text("Setujui", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            Button(
+                                onClick = { onModerate(prod, "revision_requested") },
+                                colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated, contentColor = Color(0xFFFFD700)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(34.dp)
+                            ) {
+                                Text("Revisi", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = { onModerate(prod, "rejected") },
+                                colors = ButtonDefaults.buttonColors(containerColor = StatusDanger, contentColor = Color.White),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(34.dp)
+                            ) {
+                                Text("Tolak", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DeveloperReportsTab(
+    reports: List<ContentReport>,
+    onResolve: (ContentReport, String) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text("Laporan Konten Komunitas", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("Pengaduan pelanggaran produk atau story oleh pengguna", color = TextSecondary, fontSize = 11.sp)
+        }
+
+        if (reports.isEmpty()) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
+                    Text("Belum ada laporan konten masuk", color = TextMuted, fontSize = 13.sp)
+                }
+            }
+        } else {
+            items(reports) { rep ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Flag, contentDescription = null, tint = StatusDanger, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Laporan ${rep.targetType}: ${rep.targetTitle}", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                            StatusBadge(status = rep.status)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Alasan: ${rep.reason}", color = CyanAccent, fontSize = 12.sp)
+                        Text("Pelapor: ${rep.reporterName}", color = TextSecondary, fontSize = 11.sp)
+
+                        if (rep.status == "pending") {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { onResolve(rep, "resolved") },
+                                    colors = ButtonDefaults.buttonColors(containerColor = StatusSuccess, contentColor = Color(0xFF080B10)),
+                                    modifier = Modifier.weight(1f).height(32.dp)
+                                ) {
+                                    Text("Selesaikan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Button(
+                                    onClick = { onResolve(rep, "dismissed") },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated, contentColor = TextSecondary),
+                                    modifier = Modifier.weight(1f).height(32.dp)
+                                ) {
+                                    Text("Abaikan", fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DeveloperAuditLogsTab(
+    logs: List<ModerationLog>
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.History, contentDescription = null, tint = CyanPrimary, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Log Audit Moderasi Developer", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+            Text("Rekaman jejak tindakan administratif developer di database", color = TextSecondary, fontSize = 11.sp)
+        }
+
+        if (logs.isEmpty()) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
+                    Text("Belum ada log moderasi tercatat", color = TextMuted, fontSize = 13.sp)
+                }
+            }
+        } else {
+            items(logs) { log ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(0.5.dp, SurfaceBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "${log.action} • ${log.targetType}",
+                                color = if (log.action.contains("APPROVED")) StatusSuccess else if (log.action.contains("REJECT")) StatusDanger else CyanPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                            Text(log.moderatorEmail.take(20), color = TextMuted, fontSize = 10.sp)
+                        }
+                        if (log.targetTitle.isNotBlank()) {
+                            Text(log.targetTitle, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        }
+                        if (log.reason.isNotBlank()) {
+                            Text("Alasan: ${log.reason}", color = TextSecondary, fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
         }
     }
 }

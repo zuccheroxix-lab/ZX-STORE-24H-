@@ -32,25 +32,46 @@ import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Payment
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -58,6 +79,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import androidx.credentials.CredentialManager
 import com.example.data.model.StoreOrder
 import com.example.ui.Screen
@@ -459,9 +481,27 @@ fun ProfileScreen(
 ) {
     val userProfile by viewModel.userProfile.collectAsState()
     val orders by viewModel.userOrders.collectAsState()
+    val myProducts by viewModel.userProducts.collectAsState()
+    val allProducts by viewModel.products.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val credentialManager = androidx.credentials.CredentialManager.create(context)
+
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var showEditProfileDialog by remember { mutableStateOf(false) }
+
+    var editUsername by remember { mutableStateOf(userProfile?.username ?: "") }
+    var editBio by remember { mutableStateOf(userProfile?.bio ?: "") }
+    var editAvatarUrl by remember { mutableStateOf(userProfile?.avatarUrl ?: "") }
+    var editSellerQrUrl by remember { mutableStateOf(userProfile?.sellerQrUrl ?: "") }
+
+    val isOwner = userProfile?.role == "owner"
+    val isModerator = userProfile?.role == "moderator" || isOwner
+
+    val favoriteProducts = remember(allProducts, userProfile) {
+        val favIds = userProfile?.favoriteProductIds ?: emptyList()
+        allProducts.filter { favIds.contains(it.id) }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -470,16 +510,7 @@ fun ProfileScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            Text(
-                text = "Profil Pengguna",
-                color = TextPrimary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        // User Info Card
+        // 1. Header Profile Card
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = SurfaceDark),
@@ -487,99 +518,427 @@ fun ProfileScreen(
                 border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(CircleShape)
-                            .background(CyanPrimary),
-                        contentAlignment = Alignment.Center
-                    ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(CyanPrimary)
+                                .border(2.dp, CyanPrimary, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (!userProfile?.avatarUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = userProfile!!.avatarUrl,
+                                    contentDescription = "Avatar",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize().clip(CircleShape)
+                                )
+                            } else {
+                                Text(
+                                    text = userProfile?.displayName?.take(1)?.uppercase() ?: "U",
+                                    color = Color(0xFF080B10),
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = userProfile?.displayName?.ifBlank { "User ZX" } ?: "User ZX",
+                                color = TextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp
+                            )
+                            Text(
+                                text = "@${userProfile?.username?.ifBlank { "zx_member" } ?: "zx_member"}",
+                                color = CyanAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(
+                                        if (viewModel.isDeveloper) CyanAccent.copy(alpha = 0.25f)
+                                        else if (userProfile?.role == "moderator") Color(0xFF9C27B0).copy(alpha = 0.2f)
+                                        else SurfaceElevated
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = when {
+                                        viewModel.isDeveloper -> "⚡ DEVELOPER"
+                                        userProfile?.role == "moderator" -> "🛡️ MODERATOR"
+                                        userProfile?.role == "seller" -> "🏪 PENJUAL TERVERIFIKASI"
+                                        else -> "👤 MEMBER MARKETPLACE"
+                                    },
+                                    color = if (viewModel.isDeveloper) CyanAccent else TextSecondary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = {
+                                editUsername = userProfile?.username ?: ""
+                                editBio = userProfile?.bio ?: ""
+                                editAvatarUrl = userProfile?.avatarUrl ?: ""
+                                editSellerQrUrl = userProfile?.sellerQrUrl ?: ""
+                                showEditProfileDialog = true
+                            },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(SurfaceElevated)
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit Profil", tint = CyanPrimary, modifier = Modifier.size(16.dp))
+                        }
+                    }
+
+                    if (!userProfile?.bio.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = userProfile?.displayName?.take(1)?.uppercase() ?: "U",
-                            color = Color(0xFF080B10),
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Black
+                            text = userProfile!!.bio,
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(14.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = userProfile?.displayName?.ifBlank { "Customer" } ?: "Customer",
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                        Text(
-                            text = userProfile?.email ?: "",
-                            color = TextSecondary,
-                            fontSize = 12.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(
-                                    if (userProfile?.role == "owner") CyanAccent.copy(alpha = 0.2f)
-                                    else SurfaceElevated
-                                )
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = if (userProfile?.role == "owner") "👑 OWNER / DEVELOPER" else "CUSTOMER",
-                                color = if (userProfile?.role == "owner") CyanAccent else TextSecondary,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                    // Social Stats
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = "${userProfile?.followersCount ?: 0}", color = CyanPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(text = "Pengikut", color = TextSecondary, fontSize = 11.sp)
+                        }
+                        Box(modifier = Modifier.width(1.dp).height(24.dp).background(SurfaceBorder))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = "${userProfile?.followingCount ?: 0}", color = CyanPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(text = "Mengikuti", color = TextSecondary, fontSize = 11.sp)
+                        }
+                        Box(modifier = Modifier.width(1.dp).height(24.dp).background(SurfaceBorder))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = "${orders.size}", color = CyanPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(text = "Pesanan", color = TextSecondary, fontSize = 11.sp)
                         }
                     }
                 }
             }
         }
 
-        // Quick Stats
+        // 2. Marketplace Actions Card
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = SurfaceElevated),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = SurfaceElevated),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("Total Pesanan", color = TextSecondary, fontSize = 11.sp)
-                        Text(orders.size.toString(), color = CyanPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = { viewModel.navigateTo(Screen.SUBMIT_PRODUCT) },
+                        colors = ButtonDefaults.buttonColors(containerColor = CyanPrimary, contentColor = Color(0xFF080B10)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Mulai Jual Produk (+)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
-                }
 
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = SurfaceElevated),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("Pesanan Selesai", color = TextSecondary, fontSize = 11.sp)
-                        Text(
-                            orders.count { it.orderStatus == "completed" }.toString(),
-                            color = StatusSuccess,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                    if (viewModel.isDeveloper) {
+                        OutlinedButton(
+                            onClick = { viewModel.navigateTo(Screen.OWNER_DASHBOARD) },
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CyanPrimary),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = CyanPrimary, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("⚡ Dashboard Developer & Moderasi", color = CyanPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    } else if (isModerator) {
+                        OutlinedButton(
+                            onClick = { viewModel.navigateTo(Screen.MODERATION_DASHBOARD) },
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CyanAccent),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Shield, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Dashboard Moderasi Produk", color = CyanAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
                     }
                 }
             }
         }
 
-        // Menu Links
+        // 3. Tab Selector
+        item {
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = SurfaceDark,
+                contentColor = CyanPrimary,
+                indicator = { tabPositions ->
+                    TabRowDefaults.Indicator(
+                        Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                        color = CyanPrimary,
+                        height = 2.dp
+                    )
+                }
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("Produk Saya (${myProducts.size})", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Pesanan (${orders.size})", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                )
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = { Text("Favorit (${favoriteProducts.size})", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                )
+            }
+        }
+
+        // 4. Tab Content
+        when (selectedTab) {
+            0 -> {
+                // Produk Saya
+                if (myProducts.isEmpty()) {
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("Belum Ada Produk Jualan", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Ajukan produk game, akun, atau voucher Anda sekarang untuk mulai berjualan 24 jam nonstop.",
+                                    color = TextSecondary,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    items(myProducts) { prod ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(54.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(SurfaceElevated)
+                                ) {
+                                    AsyncImage(
+                                        model = prod.imageUrl,
+                                        contentDescription = prod.name,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = prod.name,
+                                        color = TextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = formatRupiah(prod.price),
+                                        color = CyanPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    StatusBadge(status = prod.moderationStatus.ifBlank { "pending" })
+
+                                    if (prod.moderationStatus == "revision_needed" && prod.moderationNote.isNotBlank()) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "Revisi: ${prod.moderationNote}",
+                                            color = StatusWarning,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+
+                                IconButton(
+                                    onClick = { viewModel.deleteProduct(prod.id) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Hapus", tint = com.example.ui.theme.StatusDanger, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            1 -> {
+                // Pesanan Saya
+                if (orders.isEmpty()) {
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("Belum Ada Riwayat Pesanan", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Semua pembelian produk QRIS Anda akan tercatat di sini.", color = TextSecondary, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                } else {
+                    items(orders) { order ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.selectOrder(order)
+                                    if (order.orderStatus == "pending") {
+                                        viewModel.navigateTo(Screen.QRIS_PAYMENT)
+                                    } else {
+                                        viewModel.navigateTo(Screen.ORDER_STATUS)
+                                    }
+                                }
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = order.orderCode,
+                                        color = TextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                    StatusBadge(status = order.orderStatus)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = formatRupiah(order.total),
+                                    color = CyanPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            2 -> {
+                // Favorit
+                if (favoriteProducts.isEmpty()) {
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("Belum Ada Produk Favorit", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Tekan ikon hati pada produk yang Anda sukai untuk menyimpannya di sini.", color = TextSecondary, fontSize = 12.sp, textAlign = TextAlign.Center)
+                            }
+                        }
+                    }
+                } else {
+                    items(favoriteProducts) { prod ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.selectProduct(prod) }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(54.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(SurfaceElevated)
+                                ) {
+                                    AsyncImage(
+                                        model = prod.imageUrl,
+                                        contentDescription = prod.name,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = prod.name, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(text = formatRupiah(prod.price), color = CyanPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                }
+                                IconButton(
+                                    onClick = { viewModel.toggleFavorite(prod.id) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Favorite, contentDescription = null, tint = Color(0xFFFF4081))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. Help & Logout Section
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = SurfaceDark),
@@ -588,25 +947,6 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
-                    if (userProfile?.role == "owner") {
-                        ProfileMenuItem(
-                            icon = Icons.Default.AdminPanelSettings,
-                            title = "Dashboard Owner & Verifikasi",
-                            subtitle = "Kelola pesanan, katalog, verifikasi QRIS",
-                            onClick = { viewModel.navigateTo(Screen.OWNER_DASHBOARD) }
-                        )
-                        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(SurfaceBorder))
-                    }
-
-                    ProfileMenuItem(
-                        icon = Icons.Default.ReceiptLong,
-                        title = "Riwayat Pesanan",
-                        subtitle = "Lihat status transaksi dan QRIS",
-                        onClick = { viewModel.navigateTo(Screen.ORDER_HISTORY) }
-                    )
-
-                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(SurfaceBorder))
-
                     ProfileMenuItem(
                         icon = Icons.Default.HelpOutline,
                         title = "Pusat Bantuan & Layanan 24H",
@@ -617,16 +957,13 @@ fun ProfileScreen(
             }
         }
 
-        // Sign Out Button
         item {
             Button(
                 onClick = {
                     signOut(
                         context = context,
                         credentialManager = credentialManager,
-                        onSignOutComplete = {
-                            viewModel.navigateTo(Screen.HOME)
-                        },
+                        onSignOutComplete = { viewModel.navigateTo(Screen.HOME) },
                         scope = coroutineScope
                     )
                 },
@@ -646,6 +983,95 @@ fun ProfileScreen(
                 Text("Keluar dari Akun (Logout)", fontWeight = FontWeight.Bold)
             }
         }
+    }
+
+    // Edit Profile Dialog
+    if (showEditProfileDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditProfileDialog = false },
+            title = { Text("Edit Profil & Penjual", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = editUsername,
+                        onValueChange = { editUsername = it.lowercase().trim() },
+                        label = { Text("Username unik (@)", color = TextSecondary) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = SurfaceDark,
+                            unfocusedContainerColor = SurfaceDark,
+                            focusedBorderColor = CyanPrimary,
+                            unfocusedBorderColor = SurfaceBorder
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = editBio,
+                        onValueChange = { editBio = it },
+                        label = { Text("Bio singkat", color = TextSecondary) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = SurfaceDark,
+                            unfocusedContainerColor = SurfaceDark,
+                            focusedBorderColor = CyanPrimary,
+                            unfocusedBorderColor = SurfaceBorder
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = editAvatarUrl,
+                        onValueChange = { editAvatarUrl = it },
+                        label = { Text("URL Foto Profil / Avatar", color = TextSecondary) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = SurfaceDark,
+                            unfocusedContainerColor = SurfaceDark,
+                            focusedBorderColor = CyanPrimary,
+                            unfocusedBorderColor = SurfaceBorder
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = editSellerQrUrl,
+                        onValueChange = { editSellerQrUrl = it },
+                        label = { Text("URL QRIS Pembayaran Toko Anda", color = TextSecondary) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = SurfaceDark,
+                            unfocusedContainerColor = SurfaceDark,
+                            focusedBorderColor = CyanPrimary,
+                            unfocusedBorderColor = SurfaceBorder
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.updateProfile(
+                            username = editUsername,
+                            bio = editBio,
+                            avatarUrl = editAvatarUrl,
+                            sellerQrUrl = editSellerQrUrl
+                        )
+                        showEditProfileDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CyanPrimary, contentColor = Color(0xFF080B10))
+                ) {
+                    Text("Simpan", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditProfileDialog = false }) {
+                    Text("Batal", color = TextSecondary)
+                }
+            },
+            containerColor = SurfaceElevated
+        )
     }
 }
 

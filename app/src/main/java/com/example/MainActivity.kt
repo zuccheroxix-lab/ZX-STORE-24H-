@@ -37,8 +37,11 @@ import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.CartScreen
 import com.example.ui.screens.CategoriesScreen
 import com.example.ui.screens.CheckoutScreen
+import com.example.ui.screens.CreateStoryScreen
+import com.example.ui.screens.ExploreScreen
 import com.example.ui.screens.HelpScreen
 import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.ModerationDashboardScreen
 import com.example.ui.screens.OrderHistoryScreen
 import com.example.ui.screens.OrderStatusScreen
 import com.example.ui.screens.OwnerDashboardScreen
@@ -46,6 +49,10 @@ import com.example.ui.screens.ProductDetailScreen
 import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.QrisPaymentScreen
 import com.example.ui.screens.SearchScreen
+import com.example.ui.screens.SellerProfileScreen
+import com.example.ui.screens.StoryFeedScreen
+import com.example.ui.screens.StoryViewerScreen
+import com.example.ui.screens.SubmitProductScreen
 import com.example.ui.theme.BackgroundBlack
 import com.example.ui.theme.ZXStoreTheme
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
@@ -182,11 +189,21 @@ fun StoreAppContent(
     // Back button handling
     BackHandler(enabled = currentScreen != Screen.HOME) {
         when (currentScreen) {
-            Screen.PRODUCT_DETAIL -> viewModel.navigateTo(Screen.ALL_PRODUCTS)
+            Screen.PRODUCT_DETAIL -> viewModel.navigateTo(Screen.EXPLORE)
+            Screen.EXPLORE -> viewModel.navigateTo(Screen.HOME)
+            Screen.SUBMIT_PRODUCT -> viewModel.navigateTo(Screen.HOME)
+            Screen.STORY -> viewModel.navigateTo(Screen.HOME)
+            Screen.CREATE_STORY -> viewModel.navigateTo(Screen.STORY)
+            Screen.STORY_VIEWER -> viewModel.navigateTo(Screen.STORY)
+            Screen.SELLER_PROFILE -> viewModel.navigateTo(Screen.EXPLORE)
+            Screen.MODERATION_DASHBOARD -> viewModel.navigateTo(Screen.PROFILE)
             Screen.CHECKOUT -> viewModel.navigateTo(Screen.CART)
             Screen.QRIS_PAYMENT -> viewModel.navigateTo(Screen.ORDER_HISTORY)
             Screen.ORDER_STATUS -> viewModel.navigateTo(Screen.ORDER_HISTORY)
             Screen.SEARCH -> viewModel.navigateTo(Screen.HOME)
+            Screen.CATEGORIES -> viewModel.navigateTo(Screen.HOME)
+            Screen.PROFILE -> viewModel.navigateTo(Screen.HOME)
+            Screen.HELP -> viewModel.navigateTo(Screen.HOME)
             Screen.ADMIN_PRODUCTS, Screen.ADMIN_ORDERS, Screen.ADMIN_CATEGORIES, Screen.ADMIN_SETTINGS -> {
                 viewModel.navigateTo(Screen.OWNER_DASHBOARD)
             }
@@ -211,7 +228,6 @@ fun StoreAppContent(
         bottomBar = {
             StoreBottomBar(
                 currentScreen = currentScreen,
-                isOwner = isOwner,
                 onNavigate = { screen -> viewModel.navigateTo(screen) }
             )
         },
@@ -227,7 +243,13 @@ fun StoreAppContent(
         ) {
             when (currentScreen) {
                 Screen.HOME -> HomeScreen(viewModel = viewModel)
-                Screen.ALL_PRODUCTS -> AllProductsScreen(viewModel = viewModel)
+                Screen.EXPLORE, Screen.ALL_PRODUCTS -> ExploreScreen(viewModel = viewModel)
+                Screen.SUBMIT_PRODUCT -> SubmitProductScreen(viewModel = viewModel)
+                Screen.STORY -> StoryFeedScreen(viewModel = viewModel)
+                Screen.CREATE_STORY -> CreateStoryScreen(viewModel = viewModel)
+                Screen.STORY_VIEWER -> StoryViewerScreen(viewModel = viewModel)
+                Screen.SELLER_PROFILE -> SellerProfileScreen(viewModel = viewModel)
+                Screen.MODERATION_DASHBOARD -> ModerationDashboardScreen(viewModel = viewModel)
                 Screen.CATEGORIES -> CategoriesScreen(viewModel = viewModel)
                 Screen.PRODUCT_DETAIL -> ProductDetailScreen(viewModel = viewModel)
                 Screen.SEARCH -> SearchScreen(viewModel = viewModel)
